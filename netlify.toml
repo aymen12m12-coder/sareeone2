@@ -1,0 +1,23 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  # متغيرات البيئة العامة
+  NODE_VERSION = "20"
+
+# إعدادات إعادة التوجيه للتطبيقات المتعددة
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/delivery/*"
+  to = "/delivery/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
