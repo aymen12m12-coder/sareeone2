@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "./contexts/CartContext";
 import { ThemeProvider } from "./context/ThemeContext";
-import LocationPermissionModal from "./components/LocationPermissionModal";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { LocationProvider, useLocation } from "./context/LocationContext";
 import { UiSettingsProvider, useUiSettings } from "./context/UiSettingsContext";
