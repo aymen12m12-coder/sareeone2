@@ -39,6 +39,57 @@ export function registerAdvancedRoutes(app: express.Express) {
     }
   });
 
+  // Get driver stats for advanced dashboard
+  app.get("/api/admin/drivers/stats", async (req, res) => {
+    try {
+      const drivers = await dbStorage.getDrivers();
+      const stats = await Promise.all(
+        drivers.map(async (driver) => {
+          const performance = await advancedDb.getDriverPerformanceStats(driver.id);
+          const wallet = await advancedDb.getDriverWallet(driver.id);
+          const reviews = await advancedDb.getDriverReviews(driver.id);
+          const avgRating = reviews.length > 0 
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length 
+            : 0;
+            
+          return {
+            id: driver.id,
+            name: driver.name,
+            email: "driver@example.com",
+            phone: driver.phone,
+            status: driver.isActive ? "active" : "inactive",
+            rating: avgRating,
+            totalOrders: performance.totalOrders,
+            completedOrders: performance.completedOrders,
+            cancelledOrders: performance.totalOrders - performance.completedOrders,
+            totalEarnings: performance.totalEarnings,
+            todayEarnings: 0,
+            weeklyEarnings: 0,
+            monthlyEarnings: 0,
+            avgRating: avgRating,
+            joinDate: driver.createdAt.toISOString(),
+            lastActive: new Date().toISOString(),
+            isVerified: true,
+            vehicleType: "دراجة نارية",
+            vehicleNumber: "12345",
+            walletBalance: parseFloat(wallet?.balance?.toString() || "0"),
+            withdrawalRequests: [],
+            performance: {
+              acceptanceRate: 95,
+              onTimeRate: 90,
+              customerSatisfaction: avgRating * 20
+            },
+            documents: []
+          };
+        })
+      );
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching drivers stats:", error);
+      res.status(500).json({ error: "Failed to fetch driver stats" });
+    }
+  });
+
   // Get all drivers with summary
   app.get("/api/admin/drivers-summary", async (req, res) => {
     try {
@@ -135,6 +186,57 @@ export function registerAdvancedRoutes(app: express.Express) {
     }
   });
 
+  // Get restaurant stats for advanced dashboard
+  app.get("/api/admin/restaurants/stats", async (req, res) => {
+    try {
+      const restaurants = await dbStorage.getRestaurants();
+      const stats = await Promise.all(
+        restaurants.map(async (restaurant) => {
+          const performance = await advancedDb.getRestaurantPerformanceStats(restaurant.id);
+          const wallet = await advancedDb.getRestaurantWallet(restaurant.id);
+          
+          return {
+            id: restaurant.id,
+            name: restaurant.name,
+            ownerName: "صاحب المطعم", // Mock for now
+            phone: restaurant.phone || "",
+            email: "restaurant@example.com",
+            address: restaurant.address || "",
+            status: restaurant.isActive ? "active" : "inactive",
+            rating: parseFloat(restaurant.rating || "0"),
+            totalOrders: performance.totalOrders,
+            completedOrders: performance.completedOrders,
+            cancelledOrders: performance.totalOrders - performance.completedOrders,
+            totalRevenue: performance.totalRevenue,
+            commissionEarned: performance.totalCommission,
+            pendingCommission: 0, // Calculated if needed
+            todayRevenue: 0, // Needs date-specific stats
+            weeklyRevenue: 0,
+            monthlyRevenue: 0,
+            avgOrderValue: performance.averageOrderValue,
+            joinDate: restaurant.createdAt.toISOString(),
+            walletBalance: parseFloat(wallet?.balance?.toString() || "0"),
+            withdrawalRequests: [],
+            performance: {
+              orderCompletionRate: performance.totalOrders > 0 ? (performance.completedOrders / performance.totalOrders) * 100 : 0,
+              customerSatisfaction: parseFloat(restaurant.rating || "0") * 20,
+              averagePreparationTime: 25
+            },
+            businessHours: {
+              opening: restaurant.openingTime || "08:00",
+              closing: restaurant.closingTime || "23:00",
+              days: (restaurant.workingDays || "0,1,2,3,4,5,6").split(",")
+            }
+          };
+        })
+      );
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching restaurants stats:", error);
+      res.status(500).json({ error: "Failed to fetch restaurant stats" });
+    }
+  });
+
   // ===================== WALLET ROUTES =====================
 
   // Driver wallet operations
@@ -181,6 +283,21 @@ export function registerAdvancedRoutes(app: express.Express) {
         return res.status(400).json({ error: "Invalid amount" });
       }
 
+      // Check balance before creating request
+      if (entityType === 'driver') {
+        const wallet = await advancedDb.getDriverWallet(entityId);
+        const balance = parseFloat(wallet?.balance?.toString() || "0");
+        if (balance < amount) {
+          return res.status(400).json({ error: "Insufficient balance" });
+        }
+      } else if (entityType === 'restaurant') {
+        const wallet = await advancedDb.getRestaurantWallet(entityId);
+        const balance = parseFloat(wallet?.balance?.toString() || "0");
+        if (balance < amount) {
+          return res.status(400).json({ error: "Insufficient balance" });
+        }
+      }
+
       const request = await advancedDb.createWithdrawalRequest({
         entityType,
         entityId,
@@ -200,7 +317,7 @@ export function registerAdvancedRoutes(app: express.Express) {
   });
 
   // Approve withdrawal request
-  app.post("/api/admin/withdrawals/:requestId/approve", async (req, res) => {
+  app.post("/api/admin/withdrawal-requests/:requestId/approve", async (req, res) => {
     try {
       const { requestId } = req.params;
       const { approvedBy } = req.body;
@@ -210,6 +327,11 @@ export function registerAdvancedRoutes(app: express.Express) {
       // Update wallet balance
       if (request.entityType === 'driver') {
         await advancedDb.deductDriverWalletBalance(
+          request.entityId,
+          parseFloat(request.amount.toString())
+        );
+      } else if (request.entityType === 'restaurant') {
+        await advancedDb.deductRestaurantWalletBalance(
           request.entityId,
           parseFloat(request.amount.toString())
         );
@@ -223,7 +345,7 @@ export function registerAdvancedRoutes(app: express.Express) {
   });
 
   // Reject withdrawal request
-  app.post("/api/admin/withdrawals/:requestId/reject", async (req, res) => {
+  app.post("/api/admin/withdrawal-requests/:requestId/reject", async (req, res) => {
     try {
       const { requestId } = req.params;
       const { reason } = req.body;
@@ -236,7 +358,7 @@ export function registerAdvancedRoutes(app: express.Express) {
   });
 
   // Get pending withdrawal requests
-  app.get("/api/admin/withdrawals/pending", async (req, res) => {
+  app.get("/api/admin/withdrawal-requests/pending", async (req, res) => {
     try {
       const requests = await advancedDb.getPendingWithdrawalRequests();
       res.json(requests);

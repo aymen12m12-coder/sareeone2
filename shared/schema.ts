@@ -56,6 +56,7 @@ export const restaurants = pgTable("restaurants", {
   isOpen: boolean("is_open").default(true).notNull(),
   minimumOrder: decimal("minimum_order", { precision: 10, scale: 2 }).default("0"),
   deliveryFee: decimal("delivery_fee", { precision: 10, scale: 2 }).default("0"),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("0"), // نسبة الشركة من المطعم
   categoryId: uuid("category_id").references(() => categories.id),
   openingTime: varchar("opening_time", { length: 50 }).default("08:00"), // تمت الإضافة
   closingTime: varchar("closing_time", { length: 50 }).default("23:00"), // تمت الإضافة
@@ -94,6 +95,7 @@ export const drivers = pgTable("drivers", {
   password: text("password").notNull(), // إضافة حقل كلمة المرور
   isAvailable: boolean("is_available").default(true).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("70"), // نسبة السائق من رسوم التوصيل
   currentLocation: varchar("current_location", { length: 200 }),
   earnings: decimal("earnings", { precision: 10, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -120,6 +122,9 @@ export const orders = pgTable("orders", {
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   estimatedTime: varchar("estimated_time", { length: 50 }).default("30-45 دقيقة"),
   driverEarnings: decimal("driver_earnings", { precision: 10, scale: 2 }).default("0"),
+  restaurantEarnings: decimal("restaurant_earnings", { precision: 10, scale: 2 }).default("0"),
+  companyEarnings: decimal("company_earnings", { precision: 10, scale: 2 }).default("0"),
+  distance: decimal("distance", { precision: 10, scale: 2 }).default("0"),
   restaurantId: uuid("restaurant_id").references(() => restaurants.id),
   driverId: uuid("driver_id").references(() => drivers.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -355,150 +360,6 @@ export const driverWorkSessions = pgTable("driver_work_sessions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ==================== جداول جديدة للتكامل الشامل ====================
-
-// جدول أرصدة السائقين - Driver Balances
-export const driverBalances = pgTable("driver_balances", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  driverId: uuid("driver_id").references(() => drivers.id).notNull().unique(),
-  totalBalance: decimal("total_balance", { precision: 10, scale: 2 }).default("0").notNull(),
-  availableBalance: decimal("available_balance", { precision: 10, scale: 2 }).default("0").notNull(),
-  pendingAmount: decimal("pending_amount", { precision: 10, scale: 2 }).default("0").notNull(),
-  withdrawnAmount: decimal("withdrawn_amount", { precision: 10, scale: 2 }).default("0").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// جدول معاملات السائقين - Driver Transactions
-export const driverTransactions = pgTable("driver_transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  driverId: uuid("driver_id").references(() => drivers.id).notNull(),
-  type: varchar("type", { length: 50 }).notNull(), // commission, withdrawal, bonus, deduction
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  balanceBefore: decimal("balance_before", { precision: 10, scale: 2 }).notNull(),
-  balanceAfter: decimal("balance_after", { precision: 10, scale: 2 }).notNull(),
-  description: text("description"),
-  orderId: uuid("order_id").references(() => orders.id),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول عمولات السائقين - Driver Commissions
-export const driverCommissions = pgTable("driver_commissions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  driverId: uuid("driver_id").references(() => drivers.id).notNull(),
-  orderId: uuid("order_id").references(() => orders.id).notNull(),
-  orderAmount: decimal("order_amount", { precision: 10, scale: 2 }).notNull(),
-  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
-  commissionAmount: decimal("commission_amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, paid
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول طلبات سحب السائقين - Driver Withdrawals
-export const driverWithdrawals = pgTable("driver_withdrawals", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  driverId: uuid("driver_id").references(() => drivers.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("pending").notNull(), // pending, approved, rejected, completed
-  paymentMethod: varchar("payment_method", { length: 50 }).default("bank_transfer"),
-  bankDetails: text("bank_details"),
-  notes: text("notes"),
-  processedBy: uuid("processed_by"),
-  processedAt: timestamp("processed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول إعدادات رسوم التوصيل - Delivery Fee Settings
-export const deliveryFeeSettings = pgTable("delivery_fee_settings", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  type: varchar("type", { length: 50 }).notNull(), // fixed, per_km, zone_based, restaurant_custom
-  baseFee: decimal("base_fee", { precision: 10, scale: 2 }).default("0").notNull(), // رسوم أساسية
-  perKmFee: decimal("per_km_fee", { precision: 10, scale: 2 }).default("0").notNull(), // رسوم لكل كيلومتر
-  minFee: decimal("min_fee", { precision: 10, scale: 2 }).default("0").notNull(), // الحد الأدنى
-  maxFee: decimal("max_fee", { precision: 10, scale: 2 }).default("100").notNull(), // الحد الأقصى
-  freeDeliveryThreshold: decimal("free_delivery_threshold", { precision: 10, scale: 2 }).default("0"), // حد التوصيل المجاني
-  restaurantId: uuid("restaurant_id").references(() => restaurants.id), // null للإعداد العام
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// جدول مناطق التوصيل - Delivery Zones
-export const deliveryZones = pgTable("delivery_zones", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar("name", { length: 100 }).notNull(),
-  description: text("description"),
-  minDistance: decimal("min_distance", { precision: 10, scale: 2 }).default("0").notNull(), // بالكيلومتر
-  maxDistance: decimal("max_distance", { precision: 10, scale: 2 }).notNull(), // بالكيلومتر
-  deliveryFee: decimal("delivery_fee", { precision: 10, scale: 2 }).notNull(),
-  estimatedTime: varchar("estimated_time", { length: 50 }), // مثل "20-30 دقيقة"
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول حسابات المطاعم المفصّل - Restaurant Accounts
-export const restaurantAccounts = pgTable("restaurant_accounts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  restaurantId: uuid("restaurant_id").references(() => restaurants.id).notNull().unique(),
-  ownerName: varchar("owner_name", { length: 100 }).notNull(),
-  ownerPhone: varchar("owner_phone", { length: 20 }).notNull(),
-  ownerEmail: varchar("owner_email", { length: 100 }),
-  bankName: varchar("bank_name", { length: 100 }),
-  bankAccountNumber: varchar("bank_account_number", { length: 50 }),
-  bankAccountName: varchar("bank_account_name", { length: 100 }),
-  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("15").notNull(), // نسبة عمولة المنصة
-  totalOrders: integer("total_orders").default(0).notNull(),
-  totalRevenue: decimal("total_revenue", { precision: 12, scale: 2 }).default("0").notNull(),
-  totalCommission: decimal("total_commission", { precision: 12, scale: 2 }).default("0").notNull(),
-  pendingAmount: decimal("pending_amount", { precision: 12, scale: 2 }).default("0").notNull(),
-  paidAmount: decimal("paid_amount", { precision: 12, scale: 2 }).default("0").notNull(),
-  availableBalance: decimal("available_balance", { precision: 12, scale: 2 }).default("0").notNull(),
-  isActive: boolean("is_active").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// جدول معاملات المطاعم - Restaurant Transactions
-export const restaurantTransactions = pgTable("restaurant_transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  restaurantId: uuid("restaurant_id").references(() => restaurants.id).notNull(),
-  orderId: uuid("order_id").references(() => orders.id),
-  type: varchar("type", { length: 50 }).notNull(), // order_revenue, commission_deduction, withdrawal, adjustment
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  balanceBefore: decimal("balance_before", { precision: 10, scale: 2 }).notNull(),
-  balanceAfter: decimal("balance_after", { precision: 10, scale: 2 }).notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول طلبات سحب المطاعم - Restaurant Withdrawals
-export const restaurantWithdrawals = pgTable("restaurant_withdrawals", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  restaurantId: uuid("restaurant_id").references(() => restaurants.id).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("pending").notNull(),
-  paymentMethod: varchar("payment_method", { length: 50 }).default("bank_transfer"),
-  notes: text("notes"),
-  processedBy: uuid("processed_by"),
-  processedAt: timestamp("processed_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// جدول إحصائيات المطاعم اليومية - Restaurant Daily Stats
-export const restaurantDailyStats = pgTable("restaurant_daily_stats", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  restaurantId: uuid("restaurant_id").references(() => restaurants.id).notNull(),
-  date: timestamp("date").notNull(),
-  totalOrders: integer("total_orders").default(0).notNull(),
-  completedOrders: integer("completed_orders").default(0).notNull(),
-  cancelledOrders: integer("cancelled_orders").default(0).notNull(),
-  totalRevenue: decimal("total_revenue", { precision: 10, scale: 2 }).default("0").notNull(),
-  totalDeliveryFees: decimal("total_delivery_fees", { precision: 10, scale: 2 }).default("0").notNull(),
-  averageOrderValue: decimal("average_order_value", { precision: 10, scale: 2 }).default("0"),
-  averageRating: decimal("average_rating", { precision: 3, scale: 2 }).default("0"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -633,65 +494,3 @@ export type InsertDriverWorkSession = z.infer<typeof insertDriverWorkSessionSche
 
 // Re-export driverEarnings as driverEarnings (already done above with driverEarningsTable)
 export const driverEarnings = driverEarningsTable;
-
-// ==================== Schemas للجداول الجديدة ====================
-
-// Driver Balances
-export const insertDriverBalanceSchema = createInsertSchema(driverBalances);
-export const selectDriverBalanceSchema = createSelectSchema(driverBalances);
-export type DriverBalance = z.infer<typeof selectDriverBalanceSchema>;
-export type InsertDriverBalance = z.infer<typeof insertDriverBalanceSchema>;
-
-// Driver Transactions
-export const insertDriverTransactionSchema = createInsertSchema(driverTransactions);
-export const selectDriverTransactionSchema = createSelectSchema(driverTransactions);
-export type DriverTransaction = z.infer<typeof selectDriverTransactionSchema>;
-export type InsertDriverTransaction = z.infer<typeof insertDriverTransactionSchema>;
-
-// Driver Commissions
-export const insertDriverCommissionSchema = createInsertSchema(driverCommissions);
-export const selectDriverCommissionSchema = createSelectSchema(driverCommissions);
-export type DriverCommission = z.infer<typeof selectDriverCommissionSchema>;
-export type InsertDriverCommission = z.infer<typeof insertDriverCommissionSchema>;
-
-// Driver Withdrawals
-export const insertDriverWithdrawalSchema = createInsertSchema(driverWithdrawals);
-export const selectDriverWithdrawalSchema = createSelectSchema(driverWithdrawals);
-export type DriverWithdrawal = z.infer<typeof selectDriverWithdrawalSchema>;
-export type InsertDriverWithdrawal = z.infer<typeof insertDriverWithdrawalSchema>;
-
-// Delivery Fee Settings
-export const insertDeliveryFeeSettingsSchema = createInsertSchema(deliveryFeeSettings);
-export const selectDeliveryFeeSettingsSchema = createSelectSchema(deliveryFeeSettings);
-export type DeliveryFeeSettings = z.infer<typeof selectDeliveryFeeSettingsSchema>;
-export type InsertDeliveryFeeSettings = z.infer<typeof insertDeliveryFeeSettingsSchema>;
-
-// Delivery Zones
-export const insertDeliveryZoneSchema = createInsertSchema(deliveryZones);
-export const selectDeliveryZoneSchema = createSelectSchema(deliveryZones);
-export type DeliveryZone = z.infer<typeof selectDeliveryZoneSchema>;
-export type InsertDeliveryZone = z.infer<typeof insertDeliveryZoneSchema>;
-
-// Restaurant Accounts
-export const insertRestaurantAccountSchema = createInsertSchema(restaurantAccounts);
-export const selectRestaurantAccountSchema = createSelectSchema(restaurantAccounts);
-export type RestaurantAccount = z.infer<typeof selectRestaurantAccountSchema>;
-export type InsertRestaurantAccount = z.infer<typeof insertRestaurantAccountSchema>;
-
-// Restaurant Transactions
-export const insertRestaurantTransactionSchema = createInsertSchema(restaurantTransactions);
-export const selectRestaurantTransactionSchema = createSelectSchema(restaurantTransactions);
-export type RestaurantTransaction = z.infer<typeof selectRestaurantTransactionSchema>;
-export type InsertRestaurantTransaction = z.infer<typeof insertRestaurantTransactionSchema>;
-
-// Restaurant Withdrawals
-export const insertRestaurantWithdrawalSchema = createInsertSchema(restaurantWithdrawals);
-export const selectRestaurantWithdrawalSchema = createSelectSchema(restaurantWithdrawals);
-export type RestaurantWithdrawal = z.infer<typeof selectRestaurantWithdrawalSchema>;
-export type InsertRestaurantWithdrawal = z.infer<typeof insertRestaurantWithdrawalSchema>;
-
-// Restaurant Daily Stats
-export const insertRestaurantDailyStatsSchema = createInsertSchema(restaurantDailyStats);
-export const selectRestaurantDailyStatsSchema = createSelectSchema(restaurantDailyStats);
-export type RestaurantDailyStats = z.infer<typeof selectRestaurantDailyStatsSchema>;
-export type InsertRestaurantDailyStats = z.infer<typeof insertRestaurantDailyStatsSchema>;

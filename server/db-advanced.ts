@@ -129,6 +129,27 @@ export class AdvancedDatabaseStorage {
     return result[0];
   }
 
+  async addRestaurantWalletBalance(restaurantId: string, amount: number): Promise<RestaurantWallet> {
+    const wallet = await this.getRestaurantWallet(restaurantId);
+    if (!wallet) throw new Error("Wallet not found");
+    
+    const currentBalance = parseFloat(wallet.balance?.toString() || "0");
+    const newBalance = currentBalance + amount;
+    
+    return await this.updateRestaurantWallet(restaurantId, { balance: newBalance.toString() });
+  }
+
+  async deductRestaurantWalletBalance(restaurantId: string, amount: number): Promise<RestaurantWallet> {
+    const wallet = await this.getRestaurantWallet(restaurantId);
+    if (!wallet) throw new Error("Wallet not found");
+    
+    const currentBalance = parseFloat(wallet.balance?.toString() || "0");
+    if (currentBalance < amount) throw new Error("Insufficient balance");
+    
+    const newBalance = currentBalance - amount;
+    return await this.updateRestaurantWallet(restaurantId, { balance: newBalance.toString() });
+  }
+
   // Commission Settings
   async createCommissionSetting(setting: InsertCommissionSettings): Promise<CommissionSettings> {
     const result = await this.db.insert(commissionSettings).values(setting).returning();
@@ -287,18 +308,15 @@ export class AdvancedDatabaseStorage {
 
     const completedOrders = restaurantOrders.filter(o => o.status === 'delivered');
     const totalRevenue = restaurantOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount?.toString() || "0"), 0);
-    const totalCommission = completedOrders.reduce((sum, o) => {
-      const amount = parseFloat(o.total?.toString() || "0");
-      const commission = (amount * 10) / 100;
-      return sum + commission;
-    }, 0);
+    const totalCommission = completedOrders.reduce((sum, o) => sum + parseFloat(o.companyEarnings?.toString() || "0"), 0);
+    const netRevenue = completedOrders.reduce((sum, o) => sum + parseFloat(o.restaurantEarnings?.toString() || "0"), 0);
 
     return {
       totalOrders: restaurantOrders.length,
       completedOrders: completedOrders.length,
       totalRevenue,
       totalCommission,
-      netRevenue: totalRevenue - totalCommission,
+      netRevenue,
       averageOrderValue: restaurantOrders.length > 0 ? totalRevenue / restaurantOrders.length : 0
     };
   }

@@ -41,7 +41,7 @@ function coerceRequestData(data: any) {
   const coerced = { ...data };
   
   // Convert decimal fields to strings (Zod expects strings for decimal fields)
-  ['minimumOrder', 'deliveryFee', 'latitude', 'longitude', 'discountAmount', 'rating'].forEach(field => {
+  ['minimumOrder', 'deliveryFee', 'latitude', 'longitude', 'discountAmount', 'rating', 'commissionRate'].forEach(field => {
     if (coerced[field] !== undefined && coerced[field] !== null && coerced[field] !== '') {
       coerced[field] = String(coerced[field]);
     } else {
@@ -337,6 +337,7 @@ router.post("/restaurants", async (req, res) => {
       reviewCount: coercedData.reviewCount || 0,
       minimumOrder: coercedData.minimumOrder || "0",
       deliveryFee: coercedData.deliveryFee || "0",
+      commissionRate: coercedData.commissionRate || "10",
       categoryId: coercedData.categoryId,
       
       // أوقات العمل

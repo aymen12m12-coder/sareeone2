@@ -51,6 +51,19 @@ router.post("/", async (req, res) => {
       });
     }
 
+    // حساب العمولات
+    const subtotalNum = parseFloat(subtotal || '0');
+    const deliveryFeeNum = parseFloat(deliveryFee || '0');
+    const restaurantCommissionRate = parseFloat(restaurant.commissionRate?.toString() || '10'); // افتراضي 10%
+    
+    const restaurantCommissionAmount = (subtotalNum * restaurantCommissionRate) / 100;
+    const restaurantEarnings = subtotalNum - restaurantCommissionAmount;
+    
+    // حساب عمولة السائق الأولية (سيتم تحديثها عند التعيين)
+    const defaultDriverCommissionRate = 70; // 70% من رسوم التوصيل
+    const driverEarnings = (deliveryFeeNum * defaultDriverCommissionRate) / 100;
+    const companyEarnings = restaurantCommissionAmount + (deliveryFeeNum - driverEarnings);
+
     // إنشاء الطلب
     const orderData = {
       orderNumber,
@@ -63,11 +76,13 @@ router.post("/", async (req, res) => {
       paymentMethod: paymentMethod || 'cash',
       status: 'pending',
       items: itemsString,
-      subtotal: String(subtotal || 0),
-      deliveryFee: String(deliveryFee || 0),
+      subtotal: String(subtotalNum),
+      deliveryFee: String(deliveryFeeNum),
       total: String(totalAmount || 0),
       totalAmount: String(totalAmount || 0),
-      driverEarnings: String(Math.round(parseFloat(totalAmount || '0') * 0.15)), // 15% عمولة
+      driverEarnings: String(driverEarnings),
+      restaurantEarnings: String(restaurantEarnings),
+      companyEarnings: String(companyEarnings),
       restaurantId,
       estimatedTime: restaurant.deliveryTime || '30-45 دقيقة'
     };
@@ -80,7 +95,7 @@ router.post("/", async (req, res) => {
       await storage.createNotification({
         type: 'new_order',
         title: 'طلب جديد',
-        message: `طلب جديد رقم ${orderNumber} من ${customerName}`,
+        message: `طلب جديد رقم ${orderNumber} من ${customerName}. صافي الربح: ${formatCurrency(restaurantEarnings)}`,
         recipientType: 'restaurant',
         recipientId: restaurantId,
         orderId: order.id,
@@ -90,10 +105,13 @@ router.post("/", async (req, res) => {
       // إشعار لجميع السائقين المتاحين
       const availableDrivers = await storage.getAvailableDrivers();
       for (const driver of availableDrivers) {
+        const driverRate = parseFloat(driver.commissionRate?.toString() || '70');
+        const potentialEarnings = (deliveryFeeNum * driverRate) / 100;
+        
         await storage.createNotification({
           type: 'new_order_available',
           title: 'طلب جديد متاح للتوصيل',
-          message: `طلب جديد من ${restaurant.name} - ${formatCurrency(totalAmount)} - عمولة ${formatCurrency(Math.round(parseFloat(totalAmount || '0') * 0.15))}`,
+          message: `طلب جديد من ${restaurant.name} - رسوم التوصيل: ${formatCurrency(deliveryFeeNum)} - عمولتك: ${formatCurrency(potentialEarnings)}`,
           recipientType: 'driver',
           recipientId: driver.id,
           orderId: order.id,
@@ -214,13 +232,26 @@ router.put("/:id/assign-driver", async (req, res) => {
       return res.status(400).json({ error: "السائق غير متاح حالياً" });
     }
 
-    // جلب بيانات المطعم
-    const restaurant = order.restaurantId ? await storage.getRestaurant(order.restaurantId) : null;
-    const restaurantName = restaurant?.name || 'مطعم غير محدد';
+    // حساب أرباح السائق بناءً على نسبته الخاصة
+    const deliveryFeeNum = parseFloat(order.deliveryFee?.toString() || '0');
+    const driverCommissionRate = parseFloat(driver.commissionRate?.toString() || '70');
+    const driverEarnings = (deliveryFeeNum * driverCommissionRate) / 100;
+    
+    // تحديث أرباح الشركة بناءً على عمولة السائق الفعلية
+    const restaurantId = order.restaurantId;
+    const restaurants = await storage.getRestaurants();
+    const restaurant = restaurants.find(r => r.id === restaurantId);
+    
+    const subtotalNum = parseFloat(order.subtotal?.toString() || '0');
+    const restaurantCommissionRate = parseFloat(restaurant?.commissionRate?.toString() || '10');
+    const restaurantCommissionAmount = (subtotalNum * restaurantCommissionRate) / 100;
+    const companyEarnings = restaurantCommissionAmount + (deliveryFeeNum - driverEarnings);
 
     // تحديث الطلب
     const updatedOrder = await storage.updateOrder(id, {
       driverId,
+      driverEarnings: String(driverEarnings),
+      companyEarnings: String(companyEarnings),
       status: 'on_way', // تغيير الحالة إلى "في الطريق" عند التعيين
       updatedAt: new Date()
     });
@@ -234,7 +265,7 @@ router.put("/:id/assign-driver", async (req, res) => {
       await storage.createNotification({
         type: 'new_order_assigned',
         title: 'طلب جديد مُعين لك',
-        message: `تم تعيينك لتوصيل الطلب رقم ${order.orderNumber} من ${restaurantName}`,
+        message: `تم تعيينك لتوصيل الطلب رقم ${order.orderNumber} من مطعم ${restaurant.name}`,
         recipientType: 'driver',
         recipientId: driverId,
         orderId: id,
@@ -329,9 +360,66 @@ router.put("/:id", async (req, res) => {
         break;
       case 'delivered':
         statusMessage = 'تم تسليم الطلب بنجاح';
-        // تحرير السائق
+        
+        // تحرير السائق وتحديث أرباحه وأرباح المطعم
         if (order.driverId) {
           await storage.updateDriver(order.driverId, { isAvailable: true });
+          
+          // تحديث رصيد السائق في المحفظة
+          try {
+            const driverEarnings = parseFloat(order.driverEarnings?.toString() || '0');
+            if (driverEarnings > 0) {
+              const { AdvancedDatabaseStorage } = await import("../db-advanced");
+              const advStorage = new AdvancedDatabaseStorage(storage.db);
+              
+              // التحقق من وجود محفظة للسائق أو إنشاؤها
+              let wallet = await advStorage.getDriverWallet(order.driverId);
+              if (!wallet) {
+                await advStorage.createDriverWallet({
+                  driverId: order.driverId,
+                  balance: "0",
+                  isActive: true
+                });
+              }
+              await advStorage.addDriverWalletBalance(order.driverId, driverEarnings);
+              
+              // تحديث إجمالي الأرباح في جدول السائقين
+              const driver = await storage.getDriver(order.driverId);
+              const currentEarnings = parseFloat(driver?.earnings?.toString() || '0');
+              await storage.updateDriver(order.driverId, {
+                earnings: String(currentEarnings + driverEarnings)
+              });
+            }
+          } catch (e) {
+            console.error('Error updating driver earnings:', e);
+          }
+        }
+
+        // تحديث أرباح المطعم
+        if (order.restaurantId) {
+          try {
+            const restaurantEarnings = parseFloat(order.restaurantEarnings?.toString() || '0');
+            if (restaurantEarnings > 0) {
+              const { AdvancedDatabaseStorage } = await import("../db-advanced");
+              const advStorage = new AdvancedDatabaseStorage(storage.db);
+              
+              let rWallet = await advStorage.getRestaurantWallet(order.restaurantId);
+              if (!rWallet) {
+                await advStorage.createRestaurantWallet({
+                  restaurantId: order.restaurantId,
+                  balance: "0",
+                  isActive: true
+                });
+              }
+              
+              const currentBalance = parseFloat(rWallet?.balance?.toString() || "0");
+              await advStorage.updateRestaurantWallet(order.restaurantId, {
+                balance: String(currentBalance + restaurantEarnings)
+              });
+            }
+          } catch (e) {
+            console.error('Error updating restaurant earnings:', e);
+          }
         }
         break;
       case 'cancelled':

@@ -9,10 +9,6 @@ import driverRoutes from "./routes/driver";
 import ordersRoutes from "./routes/orders";
 import { adminRoutes } from "./routes/admin";
 import { registerAdvancedRoutes } from "./routes/advanced";
-import deliveryFeesRoutes from "./routes/delivery-fees";
-import restaurantAccountsRoutes from "./routes/restaurant-accounts";
-import { processOrderRevenue } from "./services/restaurantAccountService";
-import { calculateDeliveryFee } from "./services/deliveryFeeService";
 import { 
   insertRestaurantSchema, 
   insertMenuItemSchema, 
@@ -1027,12 +1023,6 @@ app.get("/api/notifications", async (req, res) => {
   
   // Register orders routes
   app.use("/api/orders", ordersRoutes);
-  
-  // Register delivery fees routes - مسارات رسوم التوصيل
-  app.use("/api/delivery-fees", deliveryFeesRoutes);
-  
-  // Register restaurant accounts routes - مسارات حسابات المطاعم
-  app.use("/api/restaurant-accounts", restaurantAccountsRoutes);
 
   // Enhanced notifications endpoint
   app.get("/api/notifications", async (req, res) => {
