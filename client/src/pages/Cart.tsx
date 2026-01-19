@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, Trash2, MapPin, Calendar, Clock, DollarSign, Plus, Minus, ShoppingCart, Loader2 } from 'lucide-react';
+import { ArrowRight, Trash2, MapPin, Calendar, Clock, DollarSign, Plus, Minus, ShoppingCart } from 'lucide-react';
 import { LocationPicker, LocationData } from '@/components/LocationPicker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,26 +12,26 @@ import { Label } from '@/components/ui/label';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import type { InsertOrder } from '@shared/schema';
+import type { InsertOrder, Restaurant } from '@shared/schema';
 
-interface DeliveryFeeResult {
-  fee: number;
-  distance: number;
-  estimatedTime: string;
-  isFreeDelivery: boolean;
-  freeDeliveryReason?: string;
+// Helper for distance calculation
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 }
 
 export default function Cart() {
   const [, setLocation] = useLocation();
-  const { state, removeItem, updateQuantity, clearCart } = useCart();
-  const { items, subtotal } = state;
+  const { state, removeItem, updateQuantity, clearCart, setDeliveryFee } = useCart();
+  const { items, subtotal, total, deliveryFee, restaurantId } = state;
   const { toast } = useToast();
-  
-  // حالة رسوم التوصيل
-  const [deliveryFee, setDeliveryFee] = useState<number>(5);
-  const [deliveryInfo, setDeliveryInfo] = useState<DeliveryFeeResult | null>(null);
-  const [isCalculatingFee, setIsCalculatingFee] = useState(false);
 
   const [orderForm, setOrderForm] = useState({
     customerName: '',
@@ -46,34 +46,21 @@ export default function Cart() {
     locationData: null as LocationData | null,
   });
 
-  // حساب الإجمالي الجديد مع رسوم التوصيل الديناميكية
-  const total = subtotal + (deliveryInfo?.isFreeDelivery ? 0 : deliveryFee);
-
-  // حساب رسوم التوصيل عند تحديد الموقع
-  const calculateDeliveryFeeMutation = useMutation({
-    mutationFn: async (data: { customerLat: number; customerLng: number; restaurantId: string; orderSubtotal: number }) => {
-      const response = await apiRequest('POST', '/api/delivery-fees/calculate', data);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        setDeliveryFee(data.fee);
-        setDeliveryInfo({
-          fee: data.fee,
-          distance: data.distance,
-          estimatedTime: data.estimatedTime,
-          isFreeDelivery: data.isFreeDelivery,
-          freeDeliveryReason: data.freeDeliveryReason
-        });
-      }
-      setIsCalculatingFee(false);
-    },
-    onError: () => {
-      setIsCalculatingFee(false);
-      // استخدام رسوم افتراضية في حالة الخطأ
-      setDeliveryFee(5);
-    }
+  // Fetch restaurant details to get coordinates
+  const { data: restaurant } = useQuery<Restaurant>({
+    queryKey: [`/api/restaurants/${restaurantId}`],
+    enabled: !!restaurantId,
   });
+
+  // Fetch UI settings to get delivery fee per km
+  const { data: settings } = useQuery<any[]>({
+    queryKey: ['/api/ui-settings'],
+  });
+
+  const deliveryFeePerKm = useMemo(() => {
+    const setting = settings?.find(s => s.key === 'delivery_fee_per_km');
+    return setting ? parseFloat(setting.value) : 10; // Default 10 per km
+  }, [settings]);
 
   // Handle location selection from LocationPicker
   const handleLocationSelect = (location: LocationData) => {
@@ -83,14 +70,25 @@ export default function Cart() {
       locationData: location,
     }));
 
-    // حساب رسوم التوصيل بناءً على الموقع
-    if (items.length > 0 && items[0].restaurantId) {
-      setIsCalculatingFee(true);
-      calculateDeliveryFeeMutation.mutate({
-        customerLat: location.lat,
-        customerLng: location.lng,
-        restaurantId: items[0].restaurantId,
-        orderSubtotal: subtotal
+    // Calculate delivery fee
+    if (restaurant && restaurant.latitude && restaurant.longitude) {
+      const distance = getDistance(
+        location.lat, 
+        location.lng, 
+        parseFloat(restaurant.latitude), 
+        parseFloat(restaurant.longitude)
+      );
+      
+      const calculatedFee = Math.max(
+        parseFloat(restaurant.deliveryFee?.toString() || '5'), // Base fee
+        Math.round(distance * deliveryFeePerKm)
+      );
+      
+      setDeliveryFee(calculatedFee);
+      
+      toast({
+        title: "تم تحديث رسوم التوصيل",
+        description: `المسافة: ${distance.toFixed(1)} كم، الرسوم: ${calculatedFee} ريال`,
       });
     }
   };
@@ -136,25 +134,18 @@ export default function Cart() {
       return;
     }
 
-    // حساب رسوم التوصيل النهائية
-    const finalDeliveryFee = deliveryInfo?.isFreeDelivery ? 0 : deliveryFee;
-    const finalTotal = subtotal + finalDeliveryFee;
-
     const orderData: InsertOrder = {
       ...orderForm,
       items: JSON.stringify(items),
       subtotal: subtotal.toString(),
-      deliveryFee: finalDeliveryFee.toString(),
-      total: finalTotal.toString(),
-      totalAmount: finalTotal.toString(),
-      restaurantId: items[0]?.restaurantId || '',
+      deliveryFee: deliveryFee.toString(),
+      total: (subtotal + deliveryFee).toString(),
+      totalAmount: (subtotal + deliveryFee).toString(),
+      restaurantId: restaurantId || '',
       status: 'pending',
       orderNumber: `ORD${Date.now()}`,
-      // إضافة إحداثيات العميل للتوصيل الدقيق
-      customerLocationLat: orderForm.locationData?.lat?.toString() || null,
-      customerLocationLng: orderForm.locationData?.lng?.toString() || null,
-      // إضافة وقت التوصيل المقدر
-      estimatedTime: deliveryInfo?.estimatedTime || '30-45 دقيقة',
+      customerLocationLat: orderForm.locationData?.lat.toString(),
+      customerLocationLng: orderForm.locationData?.lng.toString(),
     };
 
     placeOrderMutation.mutate(orderData);
@@ -422,69 +413,31 @@ export default function Cart() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">المجموع الفرعي</span>
                 <span className="text-xl font-bold text-gray-900" data-testid="text-subtotal">
-                  {subtotal} ريال
+                  {subtotal}ريال
                 </span>
               </div>
               
-              {/* رسوم التوصيل مع معلومات المسافة */}
               <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-gray-600">رسوم التوصيل</span>
-                  {deliveryInfo?.distance && deliveryInfo.distance > 0 && (
-                    <span className="text-xs text-gray-400">
-                      المسافة: {deliveryInfo.distance.toFixed(1)} كم
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {isCalculatingFee ? (
-                    <div className="flex items-center gap-1 text-gray-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">جاري الحساب...</span>
-                    </div>
-                  ) : deliveryInfo?.isFreeDelivery ? (
-                    <div className="flex flex-col items-end">
-                      <span className="text-green-600 font-medium" data-testid="text-delivery-fee">
-                        مجاني! 🎉
-                      </span>
-                      <span className="text-xs text-green-500">
-                        {deliveryInfo.freeDeliveryReason}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-gray-900" data-testid="text-delivery-fee">
-                      {subtotal > 0 ? `${deliveryFee} ريال` : '0 ريال'}
-                    </span>
-                  )}
-                </div>
+                <span className="text-gray-600">التوصيل</span>
+                <span className="text-gray-900" data-testid="text-delivery-fee">
+                  {deliveryFee} ريال
+                </span>
               </div>
-
-              {/* وقت التوصيل المقدر */}
-              {deliveryInfo?.estimatedTime && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500 flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    وقت التوصيل المتوقع
-                  </span>
-                  <span className="text-gray-700 font-medium">
-                    {deliveryInfo.estimatedTime}
-                  </span>
-                </div>
-              )}
               
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="text-gray-800 font-semibold">الإجمالي</span>
                 <span className="text-xl font-bold text-red-500" data-testid="text-total">
-                  {total} ريال
+                  {subtotal + deliveryFee} ريال
                 </span>
               </div>
               
-              {!orderForm.locationData && subtotal > 0 && (
-                <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg text-center">
-                  <MapPin className="h-4 w-4 inline-block mr-1" />
-                  حدد موقعك على الخريطة لحساب رسوم التوصيل بدقة
-                </div>
-              )}
+              <div className="text-sm text-gray-500 text-center">
+                يرجى الاتصال بالإنترنت وتحديد عنوان التوصيل (لاحتساب
+                سعر التوصيل والدعم المتوفر)
+                <Button variant="link" className="text-blue-500 p-0 h-auto text-sm">
+                  إعادة المحاولة (اضغط هنا)
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

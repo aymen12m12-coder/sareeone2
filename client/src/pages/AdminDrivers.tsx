@@ -286,6 +286,15 @@ export default function AdminDrivers() {
       return;
     }
 
+    if (formData.commissionRate < 0 || formData.commissionRate > 100) {
+      toast({
+        title: "خطأ",
+        description: "يرجى إدخال نسبة عمولة صحيحة (0-100)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!editingDriver && !formData.password.trim()) {
       toast({
         title: "خطأ",
