@@ -79,7 +79,7 @@ export function LocationPermissionModal({ onPermissionGranted, onPermissionDenie
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -122,17 +122,11 @@ export function LocationPermissionModal({ onPermissionGranted, onPermissionDenie
 
           <div className="flex gap-3">
             <Button 
-              variant="outline" 
-              onClick={handleDenyPermission}
-              className="flex-1"
-            >
-              تخطي
-            </Button>
-            <Button 
               onClick={requestLocationPermission}
-              className="flex-1"
+              className="w-full h-12 text-lg font-bold"
             >
-              السماح بالوصول
+              <Navigation className="ml-2 h-5 w-5" />
+              السماح بالوصول للموقع
             </Button>
           </div>
         </div>
