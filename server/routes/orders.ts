@@ -19,7 +19,10 @@ router.post("/", async (req, res) => {
       deliveryFee,
       totalAmount,
       restaurantId,
-      customerId
+      customerId,
+      distance,
+      customerLocationLat,
+      customerLocationLng,
     } = req.body;
 
     // التحقق من البيانات المطلوبة
@@ -54,13 +57,18 @@ router.post("/", async (req, res) => {
     // حساب العمولات
     const subtotalNum = parseFloat(subtotal || '0');
     const deliveryFeeNum = parseFloat(deliveryFee || '0');
+    
+    // جلب الإعدادات لنسبة عمولة السائق
+    const uiSettings = await storage.getUiSettings();
+    const driverCommissionSetting = uiSettings.find(s => s.key === 'driver_commission_percentage');
+    const defaultDriverCommissionRate = parseFloat(driverCommissionSetting?.value || '70');
+
     const restaurantCommissionRate = parseFloat(restaurant.commissionRate?.toString() || '10'); // افتراضي 10%
     
     const restaurantCommissionAmount = (subtotalNum * restaurantCommissionRate) / 100;
     const restaurantEarnings = subtotalNum - restaurantCommissionAmount;
     
     // حساب عمولة السائق الأولية (سيتم تحديثها عند التعيين)
-    const defaultDriverCommissionRate = 70; // 70% من رسوم التوصيل
     const driverEarnings = (deliveryFeeNum * defaultDriverCommissionRate) / 100;
     const companyEarnings = restaurantCommissionAmount + (deliveryFeeNum - driverEarnings);
 
@@ -72,6 +80,9 @@ router.post("/", async (req, res) => {
       customerEmail: customerEmail ? customerEmail.trim() : null,
       customerId: customerId || null,
       deliveryAddress: deliveryAddress.trim(),
+      customerLocationLat: customerLocationLat?.toString(),
+      customerLocationLng: customerLocationLng?.toString(),
+      distance: distance?.toString() || '0',
       notes: notes ? notes.trim() : null,
       paymentMethod: paymentMethod || 'cash',
       status: 'pending',
@@ -234,7 +245,14 @@ router.put("/:id/assign-driver", async (req, res) => {
 
     // حساب أرباح السائق بناءً على نسبته الخاصة
     const deliveryFeeNum = parseFloat(order.deliveryFee?.toString() || '0');
-    const driverCommissionRate = parseFloat(driver.commissionRate?.toString() || '70');
+    
+    // جلب الإعدادات لنسبة عمولة السائق الافتراضية
+    const uiSettings = await storage.getUiSettings();
+    const driverCommissionSetting = uiSettings.find(s => s.key === 'driver_commission_percentage');
+    const defaultDriverCommissionRate = parseFloat(driverCommissionSetting?.value || '70');
+
+    // استخدام نسبة السائق الخاصة إذا وجدت، وإلا استخدام النسبة الافتراضية
+    const driverCommissionRate = parseFloat(driver.commissionRate?.toString() || String(defaultDriverCommissionRate));
     const driverEarnings = (deliveryFeeNum * driverCommissionRate) / 100;
     
     // تحديث أرباح الشركة بناءً على عمولة السائق الفعلية
