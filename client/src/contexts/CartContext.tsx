@@ -14,6 +14,7 @@ interface CartState {
   total: number;
   subtotal: number;
   deliveryFee: number;
+  distance?: number;
 }
 
 type CartAction =
@@ -22,6 +23,7 @@ type CartAction =
   | { type: 'UPDATE_QUANTITY'; itemId: string; quantity: number }
   | { type: 'CLEAR_CART' }
   | { type: 'SET_DELIVERY_FEE'; fee: number }
+  | { type: 'SET_DISTANCE'; distance: number }
   | { type: 'ADD_NOTES'; itemId: string; notes: string }
   | { type: 'RESTORE_CART'; cartState: CartState };
 
@@ -128,6 +130,13 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       };
     }
 
+    case 'SET_DISTANCE': {
+      return {
+        ...state,
+        distance: action.distance,
+      };
+    }
+
     case 'CLEAR_CART':
       return initialState;
 
@@ -153,6 +162,7 @@ interface CartContextType {
   updateQuantity: (itemId: string, quantity: number) => void;
   addNotes: (itemId: string, notes: string) => void;
   setDeliveryFee: (fee: number) => void;
+  setDistance: (distance: number) => void;
   clearCart: () => void;
   getItemQuantity: (itemId: string) => number;
 }
@@ -226,6 +236,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_DELIVERY_FEE', fee });
   };
 
+  const setDistance = (distance: number) => {
+    dispatch({ type: 'SET_DISTANCE', distance });
+  };
+
   const clearCart = () => {
     dispatch({ type: 'CLEAR_CART' });
   };
@@ -244,6 +258,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateQuantity,
         addNotes,
         setDeliveryFee,
+        setDistance,
         clearCart,
         getItemQuantity,
       }}

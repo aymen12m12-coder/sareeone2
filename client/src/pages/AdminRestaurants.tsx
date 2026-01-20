@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit, Trash2, Store, Save, X, Clock, Star, Search, MapPin, Phone } from 'lucide-react';
+import { Plus, Edit, Trash2, Store, Save, X, Clock, Star, Search, MapPin, Phone, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import type { Restaurant, Category } from '@shared/schema';
+import LocationPicker from '@/components/maps/LocationPicker';
 
 export default function AdminRestaurants() {
   const { toast } = useToast();
@@ -22,6 +23,7 @@ export default function AdminRestaurants() {
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -666,31 +668,42 @@ export default function AdminRestaurants() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => {
-                      const address = formData.address || formData.name;
-                      if (address) {
-                        const encodedAddress = encodeURIComponent(address);
-                        const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-                        window.open(url, '_blank');
-                        toast({
-                          title: "تم فتح الخريطة",
-                          description: "يمكنك نسخ الإحداثيات من الخريطة وإدخالها في الحقول أعلاه",
-                        });
-                      } else {
-                        toast({
-                          title: "أدخل العنوان أولاً",
-                          description: "يرجى إدخال عنوان المطعم للبحث في الخريطة",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
+                    onClick={() => setShowMapPicker(true)}
                     className="flex-1"
                     data-testid="button-open-maps"
                   >
                     <MapPin className="h-4 w-4 mr-2" />
-                    تحديد الموقع عبر الخريطة
+                    تحديد الموقع من الخريطة
                   </Button>
                 </div>
+
+                {showMapPicker && (
+                  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+                    <div className="relative w-full max-w-4xl bg-white rounded-lg shadow-xl overflow-hidden">
+                      <LocationPicker
+                        onLocationSelect={(lat, lng, address) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            latitude: lat.toString(),
+                            longitude: lng.toString(),
+                            address: address
+                          }));
+                          setShowMapPicker(false);
+                          toast({
+                            title: "تم تحديد الموقع",
+                            description: "تم تحديث الإحداثيات والعنوان بنجاح",
+                          });
+                        }}
+                        onCancel={() => setShowMapPicker(false)}
+                        initialLocation={
+                          formData.latitude && formData.longitude 
+                            ? [parseFloat(formData.latitude), parseFloat(formData.longitude)] 
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Status Flags */}
                 <div className="space-y-3">

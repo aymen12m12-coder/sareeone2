@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { useCart } from '../contexts/CartContext';
+import { useLocation as useAppLocation } from '../contexts/LocationContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import type { InsertOrder, Restaurant } from '@shared/schema';
@@ -29,8 +30,9 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export default function Cart() {
   const [, setLocation] = useLocation();
-  const { state, removeItem, updateQuantity, clearCart, setDeliveryFee } = useCart();
-  const { items, subtotal, total, deliveryFee, restaurantId } = state;
+  const { state, removeItem, updateQuantity, clearCart, setDeliveryFee, setDistance } = useCart();
+  const { location: appLocation } = useAppLocation();
+  const { items, subtotal, total, deliveryFee, restaurantId, distance } = state;
   const { toast } = useToast();
 
   const [orderForm, setOrderForm] = useState({
@@ -72,7 +74,7 @@ export default function Cart() {
 
     // Calculate delivery fee
     if (restaurant && restaurant.latitude && restaurant.longitude) {
-      const distance = getDistance(
+      const distanceKm = getDistance(
         location.lat, 
         location.lng, 
         parseFloat(restaurant.latitude), 
@@ -81,14 +83,15 @@ export default function Cart() {
       
       const calculatedFee = Math.max(
         parseFloat(restaurant.deliveryFee?.toString() || '5'), // Base fee
-        Math.round(distance * deliveryFeePerKm)
+        Math.round(distanceKm * deliveryFeePerKm)
       );
       
+      setDistance(distanceKm);
       setDeliveryFee(calculatedFee);
       
       toast({
         title: "تم تحديث رسوم التوصيل",
-        description: `المسافة: ${distance.toFixed(1)} كم، الرسوم: ${calculatedFee} ريال`,
+        description: `المسافة: ${distanceKm.toFixed(1)} كم، الرسوم: ${calculatedFee} ريال`,
       });
     }
   };
@@ -116,6 +119,15 @@ export default function Cart() {
   });
 
   const handlePlaceOrder = () => {
+    if (!appLocation.hasPermission) {
+      toast({
+        title: "الموقع مطلوب",
+        description: "يرجى السماح بالوصول للموقع لتتمكن من إتمام الطلب",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!orderForm.customerName || !orderForm.customerPhone || !orderForm.deliveryAddress) {
       toast({
         title: "معلومات ناقصة",
@@ -146,6 +158,7 @@ export default function Cart() {
       orderNumber: `ORD${Date.now()}`,
       customerLocationLat: orderForm.locationData?.lat.toString(),
       customerLocationLng: orderForm.locationData?.lng.toString(),
+      distance: distance?.toString() || '0',
     };
 
     placeOrderMutation.mutate(orderData);
@@ -449,10 +462,12 @@ export default function Cart() {
               <Button 
                 className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 text-lg"
                 onClick={handlePlaceOrder}
-                disabled={placeOrderMutation.isPending}
+                disabled={placeOrderMutation.isPending || !appLocation.hasPermission}
                 data-testid="button-place-order"
               >
-                {placeOrderMutation.isPending ? 'جاري تأكيد الطلب...' : `تأكيد الطلب - ${total}ريال`}
+                {placeOrderMutation.isPending ? 'جاري تأكيد الطلب...' : 
+                 !appLocation.hasPermission ? 'يرجى تفعيل الموقع لإتمام الطلب' : 
+                 `تأكيد الطلب - ${total}ريال`}
               </Button>
             </CardContent>
           </Card>
