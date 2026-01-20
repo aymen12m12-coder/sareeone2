@@ -6,7 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { useCart } from '../contexts/CartContext';
 import CartButton from './CartButton';
 import { useToast } from '@/hooks/use-toast';
-import { useUiSettings } from '@/context/UiSettingsContext';
+import { useUiSettings } from '@/contexts/UiSettingsContext';
 
 interface LayoutProps {
   children: React.ReactNode;
