@@ -98,13 +98,21 @@ export default function Cart() {
       const response = await apiRequest('POST', '/api/orders', orderData);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "تم تأكيد طلبك بنجاح!",
         description: "سيتم التواصل معك قريباً",
       });
+      
+      // Save customer info to localStorage for future use
+      localStorage.setItem('customer_phone', orderForm.customerPhone);
+      localStorage.setItem('customer_name', orderForm.customerName);
+      if (orderForm.customerEmail) {
+        localStorage.setItem('customer_email', orderForm.customerEmail);
+      }
+      
       clearCart();
-      setLocation('/');
+      setLocation('/orders'); // Redirect to orders page instead of home
     },
     onError: () => {
       toast({

@@ -48,6 +48,12 @@ interface Order {
   estimatedTime?: string;
   driverEarnings: string;
   restaurantId: string;
+  restaurantName?: string;
+  restaurantPhone?: string;
+  restaurantAddress?: string;
+  restaurantImage?: string;
+  restaurantLatitude?: string;
+  restaurantLongitude?: string;
   driverId?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -72,8 +78,43 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
   const [driverStatus, setDriverStatus] = useState<'available' | 'busy' | 'offline'>('available');
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // WebSocket Connection
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('Connected to WebSocket');
+      ws.send(JSON.stringify({
+        type: 'auth',
+        payload: { userId: driverId }
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'order_update') {
+          queryClient.invalidateQueries({ queryKey: [`/api/orders`] });
+          queryClient.invalidateQueries({ queryKey: [`/api/driver/dashboard`] });
+          toast({ title: 'تحديث جديد', description: 'تم تحديث حالة أحد الطلبات' });
+        }
+      } catch (err) {
+        console.error('Failed to parse WS message:', err);
+      }
+    };
+
+    setSocket(ws);
+
+    return () => {
+      ws.close();
+    };
+  }, [driverId, queryClient, toast]);
 
   // Fetch dashboard data
   const { data: dashboardData, isLoading } = useQuery({
@@ -153,7 +194,21 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          setCurrentLocation([position.coords.latitude, position.coords.longitude]);
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCurrentLocation([lat, lng]);
+          
+          // Send location update to server via WebSocket
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              type: 'location_update',
+              payload: {
+                driverId,
+                latitude: lat,
+                longitude: lng
+              }
+            }));
+          }
         },
         (error) => {
           console.error('خطأ في الحصول على الموقع:', error);
@@ -167,7 +222,7 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
 
       return () => navigator.geolocation.clearWatch(watchId);
     }
-  }, []);
+  }, [socket, driverId]);
 
   const formatCurrency = (amount: number | string) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -238,8 +293,8 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
     .filter(order => order.customerLocationLat && order.customerLocationLng)
     .map(order => ({
       ...order,
-      restaurantLat: '15.3694',
-      restaurantLng: '44.1910',
+      restaurantLat: order.restaurantLatitude || '15.3694',
+      restaurantLng: order.restaurantLongitude || '44.1910',
     }));
 
   const Sidebar = () => (
@@ -477,15 +532,25 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                         <div key={order.id} className="bg-white rounded-lg p-4 border">
                           <div className="flex justify-between items-start mb-3">
                             <div>
-                              <p className="font-bold">طلب #{order.orderNumber}</p>
-                              <p className="text-sm text-gray-600">{order.customerName}</p>
+                              <p className="font-bold text-lg">طلب #{order.orderNumber}</p>
+                              <div className="flex items-center gap-2 text-primary font-bold">
+                                <Package className="h-4 w-4" />
+                                {order.restaurantName || 'مطعم غير معروف'}
+                              </div>
+                              <p className="text-sm text-gray-600">العميل: {order.customerName}</p>
                             </div>
                             {getOrderStatusBadge(order.status)}
                           </div>
 
-                          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                            <MapPin className="h-4 w-4" />
-                            {order.deliveryAddress}
+                          <div className="space-y-1 mb-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="h-4 w-4 text-orange-500" />
+                              <span className="font-medium text-gray-800">من:</span> {order.restaurantAddress || 'عنوان المطعم غير متوفر'}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="h-4 w-4 text-green-500" />
+                              <span className="font-medium text-gray-800">إلى:</span> {order.deliveryAddress}
+                            </div>
                           </div>
 
                           <div className="flex gap-2 mt-3">
@@ -575,9 +640,10 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                       {availableOrders.slice(0, 3).map((order) => (
                         <div key={order.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-gray-50">
                           <div className="flex-1">
-                            <p className="font-medium">طلب #{order.orderNumber}</p>
+                            <p className="font-bold">طلب #{order.orderNumber}</p>
+                            <p className="text-sm font-bold text-primary">{order.restaurantName || 'مطعم غير معروف'}</p>
                             <p className="text-sm text-gray-600">{order.deliveryAddress}</p>
-                            <p className="text-sm text-green-600">عمولة: {formatCurrency(order.driverEarnings)}</p>
+                            <p className="text-sm text-green-600 font-medium">عمولة: {formatCurrency(order.driverEarnings)}</p>
                           </div>
                           <Button
                             onClick={() => acceptOrderMutation.mutate(order.id)}
@@ -628,6 +694,7 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-bold text-lg">طلب #{order.orderNumber}</p>
+                              <p className="font-bold text-primary">{order.restaurantName || 'مطعم غير معروف'}</p>
                               <p className="text-sm text-gray-600">{formatDate(order.createdAt)}</p>
                             </div>
                             <div className="text-left">
@@ -638,6 +705,11 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
 
                           <div className="space-y-2 mb-3">
                             <div className="flex items-start gap-2">
+                              <MapPin className="h-4 w-4 text-orange-500 mt-0.5" />
+                              <p className="text-sm font-medium">{order.restaurantAddress || 'عنوان المطعم غير متوفر'}</p>
+                            </div>
+
+                            <div className="flex items-start gap-2">
                               <User className="h-4 w-4 text-gray-500 mt-0.5" />
                               <div>
                                 <p className="text-sm font-medium">{order.customerName}</p>
@@ -646,7 +718,7 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                             </div>
 
                             <div className="flex items-start gap-2">
-                              <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                              <MapPin className="h-4 w-4 text-green-500 mt-0.5" />
                               <p className="text-sm text-gray-600">{order.deliveryAddress}</p>
                             </div>
 
@@ -696,7 +768,8 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                           <div className="flex justify-between items-start mb-3">
                             <div>
                               <p className="font-bold text-lg">طلب #{order.orderNumber}</p>
-                              <p className="text-sm text-gray-600">{order.customerName}</p>
+                              <p className="font-bold text-primary">{order.restaurantName || 'مطعم غير معروف'}</p>
+                              <p className="text-sm text-gray-600">العميل: {order.customerName}</p>
                             </div>
                             {getOrderStatusBadge(order.status)}
                           </div>
@@ -708,7 +781,12 @@ export default function EnhancedDriverDashboard({ driverId, onLogout }: Enhanced
                             </div>
 
                             <div className="flex items-start gap-2">
-                              <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                              <MapPin className="h-4 w-4 text-orange-500 mt-0.5" />
+                              <p className="text-sm font-medium">{order.restaurantAddress || 'عنوان المطعم غير متوفر'}</p>
+                            </div>
+
+                            <div className="flex items-start gap-2">
+                              <MapPin className="h-4 w-4 text-green-500 mt-0.5" />
                               <p className="text-sm text-gray-600">{order.deliveryAddress}</p>
                             </div>
 

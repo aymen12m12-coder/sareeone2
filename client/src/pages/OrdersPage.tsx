@@ -47,29 +47,31 @@ export default function OrdersPage() {
   const { toast } = useToast();
   const [selectedTab, setSelectedTab] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
 
-  // Use a demo customer ID for testing - in real app this would come from authentication context
-  const customerId = 'demo-customer-id';
+  // Get customer info from localStorage
+  const customerPhone = localStorage.getItem('customer_phone');
+  const customerName = localStorage.getItem('customer_name');
 
-  // Fetch orders from database
+  // Fetch orders from database using phone number
   const { data: orders = [], isLoading, error } = useQuery<Order[]>({
-    queryKey: ['orders', customerId],
+    queryKey: ['orders', customerPhone],
+    enabled: !!customerPhone,
     queryFn: async () => {
-      const response = await fetch(`/api/customers/${customerId}/orders`);
+      const response = await fetch(`/api/customers/orders/by-phone/${customerPhone}`);
       if (!response.ok) {
         throw new Error('فشل في جلب الطلبات');
       }
       const data = await response.json();
       
       // Process each order to parse items and fetch restaurant name
-      const processedOrders = await Promise.all(data.map(async (order: Order) => {
+      const processedOrders = data.map((order: Order) => {
         let parsedItems: OrderItem[] = [];
         try {
-          parsedItems = JSON.parse(order.items);
+          parsedItems = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
         } catch (e) {
           console.error('خطأ في تحليل عناصر الطلب:', e);
         }
         
-        // Try to get restaurant name from items if not available
+        // Try to get restaurant name from order if available (from backend join)
         let restaurantName = order.restaurantName;
         if (!restaurantName && parsedItems.length > 0 && parsedItems[0].restaurantName) {
           restaurantName = parsedItems[0].restaurantName;
@@ -82,67 +84,16 @@ export default function OrdersPage() {
           restaurantName,
           parsedItems
         };
-      }));
+      });
       
       return processedOrders;
     },
     retry: 1
   });
 
-  // Mock fallback orders for demo if no orders in database
-  const fallbackOrders: Order[] = [
-    {
-      id: '1',
-      orderNumber: 'ORD001',
-      customerName: 'عميل تجريبي',
-      customerPhone: '123456789',
-      customerEmail: 'demo@example.com',
-      deliveryAddress: 'صنعاء، حي السبعين',
-      notes: 'طلب تجريبي',
-      paymentMethod: 'cash',
-      items: JSON.stringify([{ name: 'عربكة بالقشطة والعسل', quantity: 2, price: 55 }, { name: 'شاي كرك', quantity: 1, price: 8 }]),
-      subtotal: '118',
-      deliveryFee: '5',
-      total: '123',
-      totalAmount: '123',
-      restaurantId: 'demo-restaurant',
-      restaurantName: 'مطعم الزعتر الأصيل',
-      status: 'on_way' as const,
-      createdAt: new Date(Date.now() - 30 * 60000).toISOString(),
-      updatedAt: new Date(Date.now() - 30 * 60000).toISOString(),
-      estimatedTime: '25 دقيقة',
-      driverEarnings: '10',
-      customerId: 'demo-customer-id',
-      parsedItems: [{ name: 'عربكة بالقشطة والعسل', quantity: 2, price: 55 }, { name: 'شاي كرك', quantity: 1, price: 8 }]
-    },
-    {
-      id: '2',
-      orderNumber: 'ORD002',
-      customerName: 'عميل تجريبي',
-      customerPhone: '123456789',
-      customerEmail: 'demo@example.com',
-      deliveryAddress: 'صنعاء، شارع الزبيري',
-      notes: 'طلب تجريبي',
-      paymentMethod: 'cash',
-      items: JSON.stringify([{ name: 'برياني لحم', quantity: 1, price: 45 }, { name: 'سلطة يوغرت', quantity: 1, price: 12 }]),
-      subtotal: '57',
-      deliveryFee: '5',
-      total: '62',
-      totalAmount: '62',
-      restaurantId: 'demo-restaurant-2',
-      restaurantName: 'مطعم البخاري الملكي',
-      status: 'delivered' as const,
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60000).toISOString(),
-      updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60000).toISOString(),
-      estimatedTime: '30 دقيقة',
-      driverEarnings: '8',
-      customerId: 'demo-customer-id',
-      parsedItems: [{ name: 'برياني لحم', quantity: 1, price: 45 }, { name: 'سلطة يوغرت', quantity: 1, price: 12 }]
-    }
-  ];
-
-  // Use database orders if available, otherwise use fallback
-  const displayOrders = orders.length > 0 ? orders : fallbackOrders;
+  // Use database orders if available, otherwise use an empty array
+  // (removed fallbackOrders to show real data status)
+  const displayOrders = orders;
 
   const getStatusLabel = (status: string) => {
     const statusMap = {
