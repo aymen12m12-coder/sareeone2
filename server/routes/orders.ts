@@ -256,6 +256,12 @@ router.put("/:id/assign-driver", async (req, res) => {
       updatedAt: new Date()
     });
 
+    // Broadcast update via WebSocket
+    const ws = req.app.get('ws');
+    if (ws) {
+      ws.broadcast('order_update', { orderId: id, status: 'on_way' });
+    }
+
     // تحديث حالة السائق إلى مشغول
     await storage.updateDriver(driverId, { isAvailable: false });
 
@@ -339,6 +345,12 @@ router.put("/:id", async (req, res) => {
       status,
       updatedAt: new Date()
     });
+
+    // Broadcast update via WebSocket
+    const ws = req.app.get('ws');
+    if (ws) {
+      ws.broadcast('order_update', { orderId: id, status });
+    }
 
     // إنشاء رسالة الحالة
     let statusMessage = '';

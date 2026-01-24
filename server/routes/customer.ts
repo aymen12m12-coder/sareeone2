@@ -177,6 +177,29 @@ router.delete("/:customerId/addresses/:addressId", async (req, res) => {
   }
 });
 
+// جلب طلبات العميل بواسطة رقم الهاتف
+router.get("/orders/by-phone/:phone", async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    // جلب طلبات العميل باستخدام رقم الهاتف من التخزين مباشرة
+    const customerOrders = await storage.getCustomerOrders(phone);
+    
+    // الترتيب تم بالفعل في getCustomerOrders (desc createdAt)
+    
+    // تطبيق الترقيم
+    const startIndex = (Number(page) - 1) * Number(limit);
+    const endIndex = startIndex + Number(limit);
+    const paginatedOrders = customerOrders.slice(startIndex, endIndex);
+
+    res.json(paginatedOrders);
+  } catch (error) {
+    console.error("خطأ في جلب طلبات العميل برقم الهاتف:", error);
+    res.status(500).json({ error: "خطأ في الخادم" });
+  }
+});
+
 // جلب طلبات العميل
 router.get("/:id/orders", async (req, res) => {
   try {

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { setupWebSockets } from "./socket";
 import { setupVite, serveStatic, log } from "./viteServer";
 import { seedDefaultData } from "./seed";
 import { storage } from "./storage";
@@ -51,6 +52,10 @@ app.use((req, res, next) => {
 (async () => {
   try {
     const server = await registerRoutes(app);
+    
+    // Setup WebSockets
+    const ws = setupWebSockets(server);
+    app.set('ws', ws);
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;

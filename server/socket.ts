@@ -1,6 +1,7 @@
 import { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { log } from "./viteServer";
+import { storage } from "./storage";
 
 export interface SocketMessage {
   type: string;
@@ -18,7 +19,7 @@ export function setupWebSockets(server: Server) {
     ws.on("message", (data) => {
       try {
         const message: SocketMessage = JSON.parse(data.toString());
-        handleMessage(ws, message, clients);
+        handleMessage(ws, message, clients, wss);
       } catch (err) {
         log(`Failed to parse WS message: ${err}`);
       }
@@ -53,7 +54,7 @@ export function setupWebSockets(server: Server) {
   };
 }
 
-function handleMessage(ws: WebSocket, message: SocketMessage, clients: Map<string, WebSocket>) {
+async function handleMessage(ws: WebSocket, message: SocketMessage, clients: Map<string, WebSocket>, wss: WebSocketServer) {
   switch (message.type) {
     case "auth":
       if (message.payload.userId) {
@@ -62,7 +63,21 @@ function handleMessage(ws: WebSocket, message: SocketMessage, clients: Map<strin
       }
       break;
     case "location_update":
-      // Handle location update from driver
+      const { driverId, latitude, longitude } = message.payload;
+      if (driverId && latitude && longitude) {
+        // Broadcast location to all clients (for simplicity in this implementation)
+        // Ideally we would only send to customers who have an active order with this driver
+        const broadcastMsg = JSON.stringify({
+          type: "driver_location",
+          payload: { driverId, latitude, longitude }
+        });
+        
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(broadcastMsg);
+          }
+        });
+      }
       break;
   }
 }

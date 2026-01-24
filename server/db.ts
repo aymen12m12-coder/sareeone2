@@ -213,19 +213,130 @@ export class DatabaseStorage {
   }
 
   // Orders
-  async getOrders(): Promise<Order[]> {
-    const result = await this.db.select().from(orders);
-    return Array.isArray(result) ? result : [];
+  async getOrders(): Promise<any[]> {
+    try {
+      const result = await this.db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerName: orders.customerName,
+        customerPhone: orders.customerPhone,
+        customerEmail: orders.customerEmail,
+        customerId: orders.customerId,
+        deliveryAddress: orders.deliveryAddress,
+        customerLocationLat: orders.customerLocationLat,
+        customerLocationLng: orders.customerLocationLng,
+        notes: orders.notes,
+        paymentMethod: orders.paymentMethod,
+        status: orders.status,
+        items: orders.items,
+        subtotal: orders.subtotal,
+        deliveryFee: orders.deliveryFee,
+        total: orders.total,
+        totalAmount: orders.totalAmount,
+        estimatedTime: orders.estimatedTime,
+        driverEarnings: orders.driverEarnings,
+        restaurantEarnings: orders.restaurantEarnings,
+        companyEarnings: orders.companyEarnings,
+        distance: orders.distance,
+        restaurantId: orders.restaurantId,
+        driverId: orders.driverId,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        restaurantName: restaurants.name,
+        restaurantPhone: restaurants.phone,
+        restaurantAddress: restaurants.address,
+        restaurantImage: restaurants.image,
+        restaurantLatitude: restaurants.latitude,
+        restaurantLongitude: restaurants.longitude,
+        driverName: drivers.name,
+        driverPhone: drivers.phone,
+      })
+      .from(orders)
+      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+      .leftJoin(drivers, eq(orders.driverId, drivers.id))
+      .orderBy(desc(orders.createdAt));
+      
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      return [];
+    }
   }
 
-  async getOrder(id: string): Promise<Order | undefined> {
-    const [order] = await this.db.select().from(orders).where(eq(orders.id, id));
-    return order;
+  async getOrder(id: string): Promise<any | undefined> {
+    try {
+      const [order] = await this.db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerName: orders.customerName,
+        customerPhone: orders.customerPhone,
+        customerEmail: orders.customerEmail,
+        customerId: orders.customerId,
+        deliveryAddress: orders.deliveryAddress,
+        customerLocationLat: orders.customerLocationLat,
+        customerLocationLng: orders.customerLocationLng,
+        notes: orders.notes,
+        paymentMethod: orders.paymentMethod,
+        status: orders.status,
+        items: orders.items,
+        subtotal: orders.subtotal,
+        deliveryFee: orders.deliveryFee,
+        total: orders.total,
+        totalAmount: orders.totalAmount,
+        estimatedTime: orders.estimatedTime,
+        driverEarnings: orders.driverEarnings,
+        restaurantEarnings: orders.restaurantEarnings,
+        companyEarnings: orders.companyEarnings,
+        distance: orders.distance,
+        restaurantId: orders.restaurantId,
+        driverId: orders.driverId,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        restaurantName: restaurants.name,
+        restaurantPhone: restaurants.phone,
+        restaurantAddress: restaurants.address,
+        restaurantImage: restaurants.image,
+        restaurantLatitude: restaurants.latitude,
+        restaurantLongitude: restaurants.longitude,
+        driverName: drivers.name,
+        driverPhone: drivers.phone,
+      })
+      .from(orders)
+      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+      .leftJoin(drivers, eq(orders.driverId, drivers.id))
+      .where(eq(orders.id, id));
+      
+      return order;
+    } catch (error) {
+      console.error('Error fetching order:', error);
+      return undefined;
+    }
   }
 
-  async getOrdersByRestaurant(restaurantId: string): Promise<Order[]> {
-    const result = await this.db.select().from(orders).where(eq(orders.restaurantId, restaurantId));
-    return Array.isArray(result) ? result : [];
+  async getOrdersByRestaurant(restaurantId: string): Promise<any[]> {
+    try {
+      const result = await this.db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerName: orders.customerName,
+        customerPhone: orders.customerPhone,
+        deliveryAddress: orders.deliveryAddress,
+        status: orders.status,
+        items: orders.items,
+        totalAmount: orders.totalAmount,
+        createdAt: orders.createdAt,
+        restaurantName: restaurants.name,
+      })
+      .from(orders)
+      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+      .where(eq(orders.restaurantId, restaurantId))
+      .orderBy(desc(orders.createdAt));
+      
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('Error fetching restaurant orders:', error);
+      return [];
+    }
   }
 
   async createOrder(order: InsertOrder): Promise<Order> {
@@ -735,15 +846,74 @@ async getNotifications(recipientType?: string, recipientId?: string, unread?: bo
   }
 
   // Order Functions
-  async getOrderById(id: string): Promise<Order | undefined> {
-    const [order] = await this.db.select().from(orders).where(eq(orders.id, id));
-    return order;
+  async getOrderById(id: string): Promise<any | undefined> {
+    try {
+      const [order] = await this.db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerName: orders.customerName,
+        customerPhone: orders.customerPhone,
+        customerEmail: orders.customerEmail,
+        customerId: orders.customerId,
+        deliveryAddress: orders.deliveryAddress,
+        customerLocationLat: orders.customerLocationLat,
+        customerLocationLng: orders.customerLocationLng,
+        notes: orders.notes,
+        paymentMethod: orders.paymentMethod,
+        status: orders.status,
+        items: orders.items,
+        subtotal: orders.subtotal,
+        deliveryFee: orders.deliveryFee,
+        total: orders.total,
+        totalAmount: orders.totalAmount,
+        estimatedTime: orders.estimatedTime,
+        driverEarnings: orders.driverEarnings,
+        restaurantId: orders.restaurantId,
+        driverId: orders.driverId,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+        restaurantName: restaurants.name,
+        restaurantPhone: restaurants.phone,
+        restaurantAddress: restaurants.address,
+        restaurantImage: restaurants.image,
+      })
+      .from(orders)
+      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+      .where(eq(orders.id, id));
+      
+      return order;
+    } catch (error) {
+      console.error('Error fetching order by id:', error);
+      return undefined;
+    }
   }
 
-  async getCustomerOrders(customerPhone: string): Promise<Order[]> {
-    return await this.db.select().from(orders)
+  async getCustomerOrders(customerPhone: string): Promise<any[]> {
+    try {
+      const result = await this.db.select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        customerName: orders.customerName,
+        customerPhone: orders.customerPhone,
+        deliveryAddress: orders.deliveryAddress,
+        status: orders.status,
+        items: orders.items,
+        totalAmount: orders.totalAmount,
+        createdAt: orders.createdAt,
+        restaurantId: orders.restaurantId,
+        restaurantName: restaurants.name,
+        restaurantImage: restaurants.image,
+      })
+      .from(orders)
+      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
       .where(eq(orders.customerPhone, customerPhone))
       .orderBy(desc(orders.createdAt));
+      
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('Error fetching customer orders:', error);
+      return [];
+    }
   }
 
   async updateOrderStatus(orderId: string, status: string): Promise<Order | undefined> {
