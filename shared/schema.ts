@@ -96,6 +96,8 @@ export const drivers = pgTable("drivers", {
   isAvailable: boolean("is_available").default(true).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).default("70"), // نسبة السائق من رسوم التوصيل
+  paymentMode: varchar("payment_mode", { length: 20 }).default("commission").notNull(), // commission or salary
+  salaryAmount: decimal("salary_amount", { precision: 10, scale: 2 }).default("0"), // الراتب الشهري إن وجد
   currentLocation: varchar("current_location", { length: 200 }),
   earnings: decimal("earnings", { precision: 10, scale: 2 }).default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -126,6 +128,8 @@ export const orders = pgTable("orders", {
   companyEarnings: decimal("company_earnings", { precision: 10, scale: 2 }).default("0"),
   distance: decimal("distance", { precision: 10, scale: 2 }).default("0"),
   restaurantId: uuid("restaurant_id").references(() => restaurants.id),
+  restaurantName: varchar("restaurant_name", { length: 200 }), // اسم المطعم للسهولة
+  restaurantPhone: varchar("restaurant_phone", { length: 20 }), // رقم هاتف المطعم للسهولة
   driverId: uuid("driver_id").references(() => drivers.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -360,6 +364,45 @@ export const driverWorkSessions = pgTable("driver_work_sessions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// HR Management Tables
+export const employees = pgTable("employees", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 100 }).notNull().unique(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  position: varchar("position", { length: 50 }).notNull(), // admin, manager, support, accountant, hr
+  department: varchar("department", { length: 50 }).notNull(),
+  salary: decimal("salary", { precision: 10, scale: 2 }).notNull(),
+  hireDate: timestamp("hire_date").defaultNow().notNull(),
+  status: varchar("status", { length: 20 }).default("active").notNull(), // active, inactive, on_leave, terminated
+  address: text("address"),
+  emergencyContact: varchar("emergency_contact", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const attendance = pgTable("attendance", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  employeeId: uuid("employee_id").references(() => employees.id).notNull(),
+  date: timestamp("date").defaultNow().notNull(),
+  checkIn: timestamp("check_in"),
+  checkOut: timestamp("check_out"),
+  status: varchar("status", { length: 20 }).notNull(), // present, absent, late, early_leave, on_leave
+  hoursWorked: decimal("hours_worked", { precision: 4, scale: 2 }),
+  notes: text("notes"),
+});
+
+export const leaveRequests = pgTable("leave_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  employeeId: uuid("employee_id").references(() => employees.id).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // annual, sick, emergency, unpaid
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, approved, rejected
+  reason: text("reason"),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+});
+
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
@@ -491,6 +534,21 @@ export const insertDriverWorkSessionSchema = createInsertSchema(driverWorkSessio
 export const selectDriverWorkSessionSchema = createSelectSchema(driverWorkSessions);
 export type DriverWorkSession = z.infer<typeof selectDriverWorkSessionSchema>;
 export type InsertDriverWorkSession = z.infer<typeof insertDriverWorkSessionSchema>;
+
+export const insertEmployeeSchema = createInsertSchema(employees);
+export const selectEmployeeSchema = createSelectSchema(employees);
+export type Employee = z.infer<typeof selectEmployeeSchema>;
+export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+
+export const insertAttendanceSchema = createInsertSchema(attendance);
+export const selectAttendanceSchema = createSelectSchema(attendance);
+export type Attendance = z.infer<typeof selectAttendanceSchema>;
+export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
+
+export const insertLeaveRequestSchema = createInsertSchema(leaveRequests);
+export const selectLeaveRequestSchema = createSelectSchema(leaveRequests);
+export type LeaveRequest = z.infer<typeof selectLeaveRequestSchema>;
+export type InsertLeaveRequest = z.infer<typeof insertLeaveRequestSchema>;
 
 // Re-export driverEarnings as driverEarnings (already done above with driverEarningsTable)
 export const driverEarnings = driverEarningsTable;
