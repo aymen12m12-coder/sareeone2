@@ -25,6 +25,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { DriverManagementPanel } from '@/components/admin/DriverManagementPanel';
 import { RestaurantManagementPanel } from '@/components/admin/RestaurantManagementPanel';
 import AdvancedReports from '@/pages/admin/AdvancedReports';
+import AdminHRManagement from '@/pages/AdminHRManagement';
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -167,12 +168,13 @@ export default function AdminDashboard() {
 
         {/* Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto p-1">
             <TabsTrigger value="overview" className="py-3">نظرة عامة</TabsTrigger>
             <TabsTrigger value="orders" className="py-3">الطلبات</TabsTrigger>
             <TabsTrigger value="restaurants" className="py-3">المطاعم</TabsTrigger>
             <TabsTrigger value="drivers" className="py-3">السائقين</TabsTrigger>
             <TabsTrigger value="reports" className="py-3">التقارير</TabsTrigger>
+            <TabsTrigger value="hr" className="py-3">الموارد البشرية</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -337,6 +339,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="reports">
             <AdvancedReports />
+          </TabsContent>
+
+          <TabsContent value="hr">
+            <AdminHRManagement />
           </TabsContent>
         </Tabs>
       </div>

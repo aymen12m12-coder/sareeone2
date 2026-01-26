@@ -247,6 +247,152 @@ export default function AdminHRManagement() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="attendance">
+          <Card>
+            <CardHeader>
+              <CardTitle>سجل الحضور والإنصراف</CardTitle>
+              <CardDescription>متابعة أوقات دوام الموظفين</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>الموظف</TableHead>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>وقت الحضور</TableHead>
+                    <TableHead>وقت الإنصراف</TableHead>
+                    <TableHead>الحالة</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {attendanceRecords?.map((record) => (
+                    <TableRow key={record.id}>
+                      <TableCell className="font-medium">{record.employeeName}</TableCell>
+                      <TableCell>{new Date(record.date).toLocaleDateString('ar-YE')}</TableCell>
+                      <TableCell>{record.checkIn ? new Date(record.checkIn).toLocaleTimeString('ar-YE') : '-'}</TableCell>
+                      <TableCell>{record.checkOut ? new Date(record.checkOut).toLocaleTimeString('ar-YE') : '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={record.status === 'present' ? 'default' : 'secondary'}>
+                          {record.status === 'present' ? 'حاضر' : 
+                           record.status === 'absent' ? 'غائب' : 
+                           record.status === 'late' ? 'متأخر' : record.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!attendanceRecords?.length && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-4 text-gray-500">لا توجد سجلات حضور</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="leave">
+          <Card>
+            <CardHeader>
+              <CardTitle>طلبات الإجازة</CardTitle>
+              <CardDescription>إدارة طلبات الإجازات السنوية والمرضية</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>الموظف</TableHead>
+                    <TableHead>نوع الإجازة</TableHead>
+                    <TableHead>من تاريخ</TableHead>
+                    <TableHead>إلى تاريخ</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead className="text-left">إجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaveRequests?.map((request) => (
+                    <TableRow key={request.id}>
+                      <TableCell className="font-medium">{request.employeeName}</TableCell>
+                      <TableCell>
+                        {request.type === 'annual' ? 'سنوية' : 
+                         request.type === 'sick' ? 'مرضية' : 
+                         request.type === 'emergency' ? 'طارئة' : 'غير مدفوعة'}
+                      </TableCell>
+                      <TableCell>{new Date(request.startDate).toLocaleDateString('ar-YE')}</TableCell>
+                      <TableCell>{new Date(request.endDate).toLocaleDateString('ar-YE')}</TableCell>
+                      <TableCell>
+                        <Badge variant={request.status === 'approved' ? 'default' : request.status === 'pending' ? 'outline' : 'destructive'}>
+                          {request.status === 'approved' ? 'معتمدة' : 
+                           request.status === 'pending' ? 'قيد الانتظار' : 'مرفوضة'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {request.status === 'pending' && (
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="h-8 px-2 text-green-600 border-green-200 hover:bg-green-50">
+                              <CheckCircle className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50">
+                              <XCircle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!leaveRequests?.length && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4 text-gray-500">لا توجد طلبات إجازة</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payroll">
+          <Card>
+            <CardHeader>
+              <CardTitle>مسير الرواتب</CardTitle>
+              <CardDescription>إدارة الرواتب والمدفوعات الشهرية</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>الموظف</TableHead>
+                    <TableHead>المنصب</TableHead>
+                    <TableHead>الراتب الأساسي</TableHead>
+                    <TableHead>إجمالي المستحق</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead className="text-left">إجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {employees?.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-medium">{employee.name}</TableCell>
+                      <TableCell>{employee.position}</TableCell>
+                      <TableCell>{employee.salary} ر.ي</TableCell>
+                      <TableCell>{employee.salary} ر.ي</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">جاهز للصرف</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button size="sm" className="h-8 gap-1">
+                          <BanknoteIcon className="w-4 h-4" />
+                          صرف الراتب
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <Dialog open={showEmployeeDialog} onOpenChange={setShowEmployeeDialog}>

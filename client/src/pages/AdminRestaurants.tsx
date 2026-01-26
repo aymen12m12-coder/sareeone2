@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit, Trash2, Store, Save, X, Clock, Star, Search, MapPin, Phone } from 'lucide-react';
+import { Plus, Edit, Trash2, Store, Save, X, Clock, Star, Search, MapPin, Phone, Map as MapIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,14 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import type { Restaurant, Category } from '@shared/schema';
+import { GoogleMapsLocationPicker, type LocationData } from '@/components/GoogleMapsLocationPicker';
 
 export default function AdminRestaurants() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [formData, setFormData] = useState({
@@ -666,31 +668,31 @@ export default function AdminRestaurants() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => {
-                      const address = formData.address || formData.name;
-                      if (address) {
-                        const encodedAddress = encodeURIComponent(address);
-                        const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-                        window.open(url, '_blank');
-                        toast({
-                          title: "تم فتح الخريطة",
-                          description: "يمكنك نسخ الإحداثيات من الخريطة وإدخالها في الحقول أعلاه",
-                        });
-                      } else {
-                        toast({
-                          title: "أدخل العنوان أولاً",
-                          description: "يرجى إدخال عنوان المطعم للبحث في الخريطة",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                    className="flex-1"
-                    data-testid="button-open-maps"
+                    onClick={() => setIsMapOpen(true)}
+                    className="flex-1 bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+                    data-testid="button-open-location-picker"
                   >
-                    <MapPin className="h-4 w-4 mr-2" />
-                    تحديد الموقع عبر الخريطة
+                    <MapIcon className="h-4 w-4 mr-2" />
+                    تحديد الموقع من الخريطة (GPS)
                   </Button>
                 </div>
+
+                <GoogleMapsLocationPicker
+                  isOpen={isMapOpen}
+                  onClose={() => setIsMapOpen(false)}
+                  onLocationSelect={(location: LocationData) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      latitude: location.lat.toString(),
+                      longitude: location.lng.toString(),
+                      address: location.address || prev.address
+                    }));
+                    toast({
+                      title: "تم تحديد الموقع",
+                      description: `الإحداثيات: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+                    });
+                  }}
+                />
 
                 {/* Status Flags */}
                 <div className="space-y-3">

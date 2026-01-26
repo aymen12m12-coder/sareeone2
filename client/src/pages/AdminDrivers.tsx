@@ -45,6 +45,8 @@ export default function AdminDrivers() {
     isAvailable: true,
     isActive: true,
     commissionRate: 70, // نسبة العمولة الافتراضية 70%
+    paymentMode: 'commission' as 'commission' | 'salary',
+    salaryAmount: '0',
   });
 
   const [transactionData, setTransactionData] = useState({
@@ -125,7 +127,12 @@ export default function AdminDrivers() {
 
   const createDriverMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const response = await apiRequest('POST', '/api/drivers', data);
+      const submitData = {
+        ...data,
+        commissionRate: parseFloat(data.commissionRate.toString()),
+        salaryAmount: parseFloat(data.salaryAmount.toString()),
+      };
+      const response = await apiRequest('POST', '/api/drivers', submitData);
       return response.json();
     },
     onSuccess: () => {
@@ -141,7 +148,12 @@ export default function AdminDrivers() {
 
   const updateDriverMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const response = await apiRequest('PUT', `/api/drivers/${id}`, data);
+      const submitData = {
+        ...data,
+        commissionRate: data.commissionRate !== undefined ? parseFloat(data.commissionRate.toString()) : undefined,
+        salaryAmount: data.salaryAmount !== undefined ? parseFloat(data.salaryAmount.toString()) : undefined,
+      };
+      const response = await apiRequest('PUT', `/api/drivers/${id}`, submitData);
       return response.json();
     },
     onSuccess: () => {
@@ -242,6 +254,8 @@ export default function AdminDrivers() {
       isAvailable: true,
       isActive: true,
       commissionRate: 70,
+      paymentMode: 'commission',
+      salaryAmount: '0',
     });
     setEditingDriver(null);
   };
@@ -265,6 +279,8 @@ export default function AdminDrivers() {
       isAvailable: driver.isAvailable,
       isActive: driver.isActive,
       commissionRate: driver.commissionRate || 70,
+      paymentMode: (driver.paymentMode as 'commission' | 'salary') || 'commission',
+      salaryAmount: driver.salaryAmount?.toString() || '0',
     });
     setIsDialogOpen(true);
   };
@@ -393,12 +409,12 @@ export default function AdminDrivers() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ar-SA', {
+    return new Intl.NumberFormat('ar-YE', {
       style: 'currency',
-      currency: 'SAR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
+      currency: 'YER',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount).replace('YER', 'ريال');
   };
 
   const formatDate = (date: string) => {
@@ -553,22 +569,47 @@ export default function AdminDrivers() {
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="commissionRate">نسبة العمولة (%)</Label>
-                    <Input
-                      id="commissionRate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={formData.commissionRate}
-                      onChange={(e) => setFormData(prev => ({ ...prev, commissionRate: parseInt(e.target.value) || 70 }))}
-                      placeholder="نسبة العمولة من كل طلب"
-                      required
-                      data-testid="input-driver-commission"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      النسبة المئوية التي يحصل عليها السائق من كل طلب
-                    </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="paymentMode">نظام الدفع</Label>
+                      <Select 
+                        value={formData.paymentMode} 
+                        onValueChange={(value: 'commission' | 'salary') => setFormData(prev => ({ ...prev, paymentMode: value }))}
+                      >
+                        <SelectTrigger id="paymentMode">
+                          <SelectValue placeholder="اختر نظام الدفع" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="commission">عمولة</SelectItem>
+                          <SelectItem value="salary">راتب شهري</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.paymentMode === 'salary' ? (
+                      <div className="space-y-2">
+                        <Label htmlFor="salaryAmount">الراتب الشهري</Label>
+                        <Input
+                          id="salaryAmount"
+                          type="number"
+                          value={formData.salaryAmount}
+                          onChange={(e) => setFormData(prev => ({ ...prev, salaryAmount: e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="commissionRate">العمولة (%)</Label>
+                        <Input
+                          id="commissionRate"
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={formData.commissionRate}
+                          onChange={(e) => setFormData(prev => ({ ...prev, commissionRate: parseInt(e.target.value) || 70 }))}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3">
@@ -686,9 +727,11 @@ export default function AdminDrivers() {
                       )}
                       
                       <div className="flex items-center gap-2">
-                        <Coins className="h-4 w-4 text-muted-foreground" />
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-foreground">
-                          نسبة العمولة: {driver.commissionRate || 70}%
+                          {driver.paymentMode === 'salary' 
+                            ? `راتب: ${formatCurrency(driver.salaryAmount || 0)}` 
+                            : `نسبة العمولة: ${driver.commissionRate || 70}%`}
                         </span>
                       </div>
                       

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Trash2, MapPin, Calendar, Clock, DollarSign, Plus, Minus, ShoppingCart } from 'lucide-react';
-import { LocationPicker, LocationData } from '@/components/LocationPicker';
+import { LocationPicker } from '@/components/LocationPicker';
+import { GoogleMapsLocationPicker, type LocationData as MapLocationData } from '@/components/GoogleMapsLocationPicker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ export default function Cart() {
   const { state, removeItem, updateQuantity, clearCart, setDeliveryFee } = useCart();
   const { items, subtotal, total, deliveryFee, restaurantId } = state;
   const { toast } = useToast();
+  const [isMapConfirmationOpen, setIsMapConfirmationOpen] = useState(false);
 
   const [orderForm, setOrderForm] = useState({
     customerName: '',
@@ -43,7 +45,7 @@ export default function Cart() {
     deliveryTime: 'now', // 'now' or 'later'
     deliveryDate: '',
     deliveryTimeSlot: '',
-    locationData: null as LocationData | null,
+    locationData: null as any | null,
   });
 
   // Fetch restaurant details to get coordinates
@@ -80,7 +82,7 @@ export default function Cart() {
       );
       
       const calculatedFee = Math.max(
-        parseFloat(restaurant.deliveryFee?.toString() || '5'), // Base fee
+        parseFloat(restaurant.deliveryFee?.toString() || '500'), // الحد الأدنى (بالريال اليمني)
         Math.round(distance * deliveryFeePerKm)
       );
       
@@ -142,18 +144,45 @@ export default function Cart() {
       return;
     }
 
+    // فتح نافذة تأكيد الموقع قبل الإرسال
+    setIsMapConfirmationOpen(true);
+  };
+
+  const confirmLocationAndSubmit = (location: MapLocationData) => {
+    setIsMapConfirmationOpen(false);
+
+    let finalDeliveryFee = deliveryFee;
+    let distance = 0;
+
+    // إعادة حساب الرسوم بناءً على الموقع المؤكد
+    if (restaurant && restaurant.latitude && restaurant.longitude) {
+      distance = getDistance(
+        location.lat, 
+        location.lng, 
+        parseFloat(restaurant.latitude), 
+        parseFloat(restaurant.longitude)
+      );
+      
+      finalDeliveryFee = Math.max(
+        parseFloat(restaurant.deliveryFee?.toString() || '500'), // الحد الأدنى (بالريال اليمني)
+        Math.round(distance * deliveryFeePerKm)
+      );
+    }
+
     const orderData: InsertOrder = {
       ...orderForm,
       items: JSON.stringify(items),
       subtotal: subtotal.toString(),
-      deliveryFee: deliveryFee.toString(),
-      total: (subtotal + deliveryFee).toString(),
-      totalAmount: (subtotal + deliveryFee).toString(),
+      deliveryFee: finalDeliveryFee.toString(),
+      total: (subtotal + finalDeliveryFee).toString(),
+      totalAmount: (subtotal + finalDeliveryFee).toString(),
       restaurantId: restaurantId || '',
       status: 'pending',
       orderNumber: `ORD${Date.now()}`,
-      customerLocationLat: orderForm.locationData?.lat.toString(),
-      customerLocationLng: orderForm.locationData?.lng.toString(),
+      customerLocationLat: location.lat.toString(),
+      customerLocationLng: location.lng.toString(),
+      deliveryAddress: location.address || orderForm.deliveryAddress,
+      distance: distance.toString()
     };
 
     placeOrderMutation.mutate(orderData);
@@ -485,6 +514,16 @@ export default function Cart() {
           </Card>
         )}
       </div>
+
+      <GoogleMapsLocationPicker
+        isOpen={isMapConfirmationOpen}
+        onClose={() => setIsMapConfirmationOpen(false)}
+        onLocationSelect={confirmLocationAndSubmit}
+        restaurantLocation={restaurant && restaurant.latitude && restaurant.longitude ? {
+          lat: parseFloat(restaurant.latitude),
+          lng: parseFloat(restaurant.longitude)
+        } : undefined}
+      />
     </div>
   );
 }

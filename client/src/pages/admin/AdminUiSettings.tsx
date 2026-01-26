@@ -31,6 +31,7 @@ const settingsConfig: SettingItem[] = [
   { key: 'app_name', label: 'اسم التطبيق', type: 'text', description: 'اسم التطبيق الذي يظهر للمستخدمين', category: 'عام' },
   { key: 'app_theme', label: 'لون الموضوع', type: 'text', description: 'اللون الأساسي للتطبيق (hex color)', category: 'عام' },
   { key: 'delivery_fee_default', label: 'رسوم التوصيل الافتراضية', type: 'text', description: 'رسوم التوصيل الافتراضية (ريال)', category: 'عام' },
+  { key: 'delivery_fee_per_km', label: 'سعر الكيلومتر الواحد', type: 'text', description: 'سعر الكيلومتر الواحد لحساب رسوم التوصيل (ريال)', category: 'عام' },
   { key: 'minimum_order_default', label: 'الحد الأدنى للطلب', type: 'text', description: 'الحد الأدنى لقيمة الطلب (ريال)', category: 'عام' },
   
   // Store Settings
