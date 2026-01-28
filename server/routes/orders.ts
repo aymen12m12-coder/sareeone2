@@ -105,16 +105,13 @@ router.post("/", async (req, res) => {
       // إشعار لجميع السائقين المتاحين
       const availableDrivers = await storage.getAvailableDrivers();
       for (const driver of availableDrivers) {
-        let potentialEarnings = 0;
-        if (driver.paymentMode === 'commission') {
-          const driverRate = parseFloat(driver.commissionRate?.toString() || '70');
-          potentialEarnings = (deliveryFeeNum * driverRate) / 100;
-        }
+        const driverRate = parseFloat(driver.commissionRate?.toString() || '70');
+        const potentialEarnings = (deliveryFeeNum * driverRate) / 100;
         
         await storage.createNotification({
           type: 'new_order_available',
           title: 'طلب جديد متاح للتوصيل',
-          message: `طلب جديد من ${restaurant.name} - رسوم التوصيل: ${formatCurrency(deliveryFeeNum)}${driver.paymentMode === 'commission' ? ` - عمولتك: ${formatCurrency(potentialEarnings)}` : ' (راتب شهري)'}`,
+          message: `طلب جديد من ${restaurant.name} - رسوم التوصيل: ${formatCurrency(deliveryFeeNum)} - عمولتك: ${formatCurrency(potentialEarnings)}`,
           recipientType: 'driver',
           recipientId: driver.id,
           orderId: order.id,
@@ -235,14 +232,10 @@ router.put("/:id/assign-driver", async (req, res) => {
       return res.status(400).json({ error: "السائق غير متاح حالياً" });
     }
 
-    // حساب أرباح السائق بناءً على نسبته الخاصة ونظام الدفع
+    // حساب أرباح السائق بناءً على نسبته الخاصة
     const deliveryFeeNum = parseFloat(order.deliveryFee?.toString() || '0');
-    let driverEarnings = 0;
-    
-    if (driver.paymentMode === 'commission') {
-      const driverCommissionRate = parseFloat(driver.commissionRate?.toString() || '70');
-      driverEarnings = (deliveryFeeNum * driverCommissionRate) / 100;
-    }
+    const driverCommissionRate = parseFloat(driver.commissionRate?.toString() || '70');
+    const driverEarnings = (deliveryFeeNum * driverCommissionRate) / 100;
     
     // تحديث أرباح الشركة بناءً على عمولة السائق الفعلية
     const restaurantId = order.restaurantId;
@@ -592,7 +585,7 @@ router.patch("/:orderId/cancel", async (req, res) => {
 // Helper function
 function formatCurrency(amount: string | number) {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return `${Math.round(num || 0)} ر.ي`;
+  return `${num.toFixed(2)} ريال`;
 }
 
 export default router;

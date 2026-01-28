@@ -2,7 +2,6 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { 
   driverReviews, driverEarnings, driverWallets, restaurantWallets,
   commissionSettings, withdrawalRequests, driverWorkSessions,
-  employees, attendance, leaveRequests,
   drivers, orders, users,
   type DriverReview, type InsertDriverReview,
   type DriverEarnings, type InsertDriverEarnings,
@@ -10,10 +9,7 @@ import {
   type RestaurantWallet, type InsertRestaurantWallet,
   type CommissionSettings, type InsertCommissionSettings,
   type WithdrawalRequest, type InsertWithdrawalRequest,
-  type DriverWorkSession, type InsertDriverWorkSession,
-  type Employee, type InsertEmployee,
-  type Attendance, type InsertAttendance,
-  type LeaveRequest, type InsertLeaveRequest
+  type DriverWorkSession, type InsertDriverWorkSession
 } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 
@@ -323,100 +319,5 @@ export class AdvancedDatabaseStorage {
       netRevenue,
       averageOrderValue: restaurantOrders.length > 0 ? totalRevenue / restaurantOrders.length : 0
     };
-  }
-
-  async getWithdrawalRequestsByEntity(entityId: string, entityType: string): Promise<WithdrawalRequest[]> {
-    return await this.db.select().from(withdrawalRequests)
-      .where(and(
-        eq(withdrawalRequests.entityId, entityId),
-        eq(withdrawalRequests.entityType, entityType)
-      ))
-      .orderBy(desc(withdrawalRequests.createdAt));
-  }
-
-  async getAllWithdrawalRequests(): Promise<WithdrawalRequest[]> {
-    return await this.db.select().from(withdrawalRequests)
-      .orderBy(desc(withdrawalRequests.createdAt));
-  }
-
-  async getFinancialStats(startDate?: Date, endDate?: Date) {
-    const conditions = [];
-    if (startDate) conditions.push(gte(orders.createdAt, startDate));
-    if (endDate) conditions.push(lte(orders.createdAt, endDate));
-
-    const allOrders = await this.db.select().from(orders)
-      .where(and(...conditions));
-
-    const completedOrders = allOrders.filter(o => o.status === 'delivered');
-    
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount?.toString() || "0"), 0);
-    const totalCommission = completedOrders.reduce((sum, o) => sum + parseFloat(o.companyEarnings?.toString() || "0"), 0);
-    const totalDeliveryFees = completedOrders.reduce((sum, o) => sum + parseFloat(o.deliveryFee?.toString() || "0"), 0);
-    const totalDriverEarnings = completedOrders.reduce((sum, o) => sum + parseFloat(o.driverEarnings?.toString() || "0"), 0);
-    const totalRestaurantEarnings = completedOrders.reduce((sum, o) => sum + parseFloat(o.restaurantEarnings?.toString() || "0"), 0);
-
-    return {
-      totalRevenue,
-      totalCommission,
-      totalDeliveryFees,
-      totalDriverEarnings,
-      totalRestaurantEarnings,
-      netProfit: totalCommission, // Simplified profit calculation
-      orderCount: allOrders.length,
-      completedOrderCount: completedOrders.length
-    };
-  }
-
-  async getTransactions(limit = 50) {
-    // This could be improved by a dedicated transactions table, 
-    // but for now, we can derive from withdrawal requests and orders
-    const withdrawals = await this.db.select().from(withdrawalRequests)
-      .orderBy(desc(withdrawalRequests.createdAt))
-      .limit(limit);
-
-    return withdrawals.map(w => ({
-      id: w.id,
-      type: 'withdrawal',
-      amount: parseFloat(w.amount.toString()),
-      status: w.status,
-      createdAt: w.createdAt,
-      description: `سحب مبلغ إلى ${w.bankDetails || 'حساب بنكي'}`
-    }));
-  }
-
-  // HR Management
-  async getEmployees(): Promise<Employee[]> {
-    return await this.db.select().from(employees).orderBy(desc(employees.createdAt));
-  }
-
-  async createEmployee(employee: InsertEmployee): Promise<Employee> {
-    const result = await this.db.insert(employees).values(employee).returning();
-    return result[0];
-  }
-
-  async updateEmployee(id: string, updates: Partial<InsertEmployee>): Promise<Employee> {
-    const result = await this.db.update(employees)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(employees.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async getAttendanceRecords(): Promise<Attendance[]> {
-    return await this.db.select().from(attendance).orderBy(desc(attendance.date));
-  }
-
-  async createAttendanceRecord(record: InsertAttendance): Promise<Attendance> {
-    const result = await this.db.insert(attendance).values(record).returning();
-    return result[0];
-  }
-
-  async getLeaveRequests(): Promise<LeaveRequest[]> {
-    return await this.db.select().from(leaveRequests).orderBy(desc(leaveRequests.submittedAt));
-  }
-
-  async createLeaveRequest(request: InsertLeaveRequest): Promise<LeaveRequest> {
-    const result = await this.db.insert(leaveRequests).values(request).returning();
-    return result[0];
   }
 }
